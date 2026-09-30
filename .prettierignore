@@ -1,0 +1,6 @@
+dist
+node_modules
+.history
+pnpm-lock.yaml
+# 早期静态设计稿仅归档，不属于应用构建产物。
+stacknest-html-design-neutral

@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StackNest · 早期控制中心概念稿（归档）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">S</div>
+        <div>
+          <div class="brand-title">StackNest</div>
+          <div class="brand-subtitle">个人项目控制中心</div>
+        </div>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-label">工作区</div>
+        <a class="nav-item active" href="#">
+          <span class="nav-icon">⌂</span>
+          <span>总览</span>
+        </a>
+        <a class="nav-item" href="#projects">
+          <span class="nav-icon">▣</span>
+          <span>项目</span>
+        </a>
+        <a class="nav-item" href="#deployments">
+          <span class="nav-icon">⇪</span>
+          <span>部署记录</span>
+        </a>
+        <a class="nav-item" href="#server">
+          <span class="nav-icon">◫</span>
+          <span>服务器</span>
+        </a>
+      </div>
+
+      <div class="sidebar-card server-mini">
+        <div class="sidebar-card-header">
+          <span class="status-dot status-ok"></span>
+          <span>Home Server</span>
+        </div>
+        <div class="server-mini-spec">2 vCPU · 2 GB RAM · 40 GB SSD</div>
+        <div class="progress progress-green"><span style="width: 47%"></span></div>
+        <div class="mini-meta">
+          <span>内存 47%</span>
+          <span>磁盘已用 18.4 GB</span>
+        </div>
+      </div>
+
+      <div class="sidebar-bottom">
+        <a class="nav-item" href="#">
+          <span class="nav-icon">⚙</span>
+          <span>设置</span>
+        </a>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">下午好，欢迎回来</div>
+          <h1>你的项目，都放在这里。</h1>
+        </div>
+        <div class="topbar-actions">
+          <button class="ghost-btn">⌘ K 搜索</button>
+          <button class="primary-btn" id="openProjectModal">＋ 新建项目</button>
+        </div>
+      </header>
+
+      <section class="hero-grid">
+        <div class="hero-card hero-card-wide glass-card">
+          <div class="hero-card-top">
+            <div>
+              <div class="section-title">快速部署</div>
+              <div class="section-subtitle">早期概念：静态站点与 Dockerfile 能力设想</div>
+            </div>
+            <div class="subtle-pill">全部部署都留在你的服务器上</div>
+          </div>
+
+          <div class="deploy-card-grid">
+            <article class="deploy-card deploy-static">
+              <div class="deploy-icon">⬆</div>
+              <div class="deploy-head">
+                <h3>静态站点</h3>
+                <p>HTML / Vite dist / docs / 落地页</p>
+              </div>
+              <p class="deploy-desc">
+                上传 ZIP 或文件夹，StackNest 自动解压、生成子域名，并通过 Nginx 发布。
+              </p>
+              <div class="deploy-footer">
+                <span class="tag">无需容器</span>
+                <button class="dark-btn">上传部署</button>
+              </div>
+            </article>
+
+            <article class="deploy-card deploy-docker">
+              <div class="deploy-icon">◫</div>
+              <div class="deploy-head">
+                <h3>Dockerfile</h3>
+                <p>Node / Go / Python / 任意容器项目</p>
+              </div>
+              <p class="deploy-desc">
+                上传包含 Dockerfile 的项目，自动构建镜像、启动容器、配置反向代理并实时输出日志。
+              </p>
+              <div class="deploy-footer">
+                <span class="tag">自动 Build</span>
+                <button class="outline-btn">部署 Dockerfile</button>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div class="hero-side">
+          <div class="glass-card metric-card">
+            <div class="metric-label">运行中项目</div>
+            <div class="metric-value">6 / 8</div>
+            <div class="progress progress-green"><span style="width: 75%"></span></div>
+            <div class="metric-meta">当前在线 6 个项目</div>
+          </div>
+          <div class="glass-card metric-card">
+            <div class="metric-label">服务器状态</div>
+            <div class="metric-value">Healthy</div>
+            <div class="progress progress-purple"><span style="width: 47%"></span></div>
+            <div class="metric-meta">CPU 23% · RAM 0.94 / 2 GB</div>
+          </div>
+          <div class="glass-card metric-card">
+            <div class="metric-label">构建队列</div>
+            <div class="metric-value">1 / 3</div>
+            <div class="progress progress-cyan"><span style="width: 33%"></span></div>
+            <div class="metric-meta">并发限制：1，后续排队 2 个任务</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="content-grid">
+        <div class="content-left">
+          <section class="glass-card" id="projects">
+            <div class="card-header">
+              <div>
+                <h2>最近项目</h2>
+                <p>从这里进入项目详情、日志和重部署操作</p>
+              </div>
+              <button class="text-btn">查看全部</button>
+            </div>
+
+            <div class="project-table">
+              <div class="project-table-head">
+                <span>项目</span>
+                <span>类型</span>
+                <span>域名 / 入口</span>
+                <span>状态</span>
+                <span>最近部署</span>
+              </div>
+
+              <div class="project-row active-row">
+                <div class="project-col project-name">
+                  <div class="project-avatar purple">◫</div>
+                  <div>
+                    <div class="project-title">fpi-demo</div>
+                    <div class="project-meta">自动识别 Dockerfile · 容器端口 3000</div>
+                  </div>
+                </div>
+                <div class="project-col">Dockerfile</div>
+                <div class="project-col linkish">fpi.example.com</div>
+                <div class="project-col"><span class="status-badge status-running">Running</span></div>
+                <div class="project-col dim">2 分钟前</div>
+              </div>
+
+              <div class="project-row">
+                <div class="project-col project-name">
+                  <div class="project-avatar blue">⌘</div>
+                  <div>
+                    <div class="project-title">landing-lab</div>
+                    <div class="project-meta">静态站点 · 自动分配子域名</div>
+                  </div>
+                </div>
+                <div class="project-col">Static</div>
+                <div class="project-col linkish">lab.example.com</div>
+                <div class="project-col"><span class="status-badge status-online">Online</span></div>
+                <div class="project-col dim">昨天</div>
+              </div>
+
+              <div class="project-row">
+                <div class="project-col project-name">
+                  <div class="project-avatar amber">⚡</div>
+                  <div>
+                    <div class="project-title">api-playground</div>
+                    <div class="project-meta">实验性接口服务</div>
+                  </div>
+                </div>
+                <div class="project-col">Dockerfile</div>
+                <div class="project-col linkish">api.example.com</div>
+                <div class="project-col"><span class="status-badge status-stopped">Stopped</span></div>
+                <div class="project-col dim">3 天前</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="glass-card" id="deployments">
+            <div class="card-header">
+              <div>
+                <h2>构建与部署活动</h2>
+                <p>这里是以后可以继续演化成部署历史页的区域</p>
+              </div>
+              <div class="subtle-pill">近 12 小时</div>
+            </div>
+
+            <div class="activity-panel">
+              <div class="activity-chart">
+                <div class="chart-bars">
+                  <span style="height: 26%"></span>
+                  <span style="height: 44%"></span>
+                  <span style="height: 38%"></span>
+                  <span style="height: 68%"></span>
+                  <span style="height: 54%"></span>
+                  <span style="height: 82%"></span>
+                  <span style="height: 71%"></span>
+                  <span style="height: 92%"></span>
+                  <span style="height: 76%"></span>
+                  <span style="height: 64%"></span>
+                  <span style="height: 58%"></span>
+                  <span style="height: 79%"></span>
+                </div>
+                <div class="chart-caption">部署活动平稳，未出现构建拥堵或服务器异常。</div>
+              </div>
+
+              <div class="queue-list">
+                <div class="queue-item current">
+                  <div>
+                    <div class="queue-title">正在构建 · fpi-demo</div>
+                    <div class="queue-meta">docker build → health check → reload nginx</div>
+                  </div>
+                  <span class="queue-time">01:42</span>
+                </div>
+                <div class="queue-item">
+                  <div>
+                    <div class="queue-title">排队中 · blog-static</div>
+                    <div class="queue-meta">等待前一个任务结束，准备解压上传包</div>
+                  </div>
+                  <span class="queue-time">Queued</span>
+                </div>
+                <div class="queue-item">
+                  <div>
+                    <div class="queue-title">排队中 · docs-preview</div>
+                    <div class="queue-meta">上传完成，尚未进入构建阶段</div>
+                  </div>
+                  <span class="queue-time">Queued</span>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <aside class="content-right" id="server">
+          <section class="glass-card detail-card">
+            <div class="card-header compact-header">
+              <div>
+                <h2>项目详情预览</h2>
+                <p>以 fpi-demo 作为默认选中项目</p>
+              </div>
+            </div>
+
+            <div class="detail-overview">
+              <div class="detail-title-row">
+                <div class="project-avatar purple large">◫</div>
+                <div>
+                  <div class="detail-title">fpi-demo</div>
+                  <div class="detail-subtitle">Workers / Demo 镜像项目</div>
+                </div>
+              </div>
+              <div class="detail-kv-list">
+                <div><span>类型</span><strong>Dockerfile</strong></div>
+                <div><span>域名</span><strong>fpi.example.com</strong></div>
+                <div><span>容器端口</span><strong>3000</strong></div>
+                <div><span>最近镜像</span><strong>stacknest/fpi:a82f31</strong></div>
+              </div>
+            </div>
+
+            <div class="detail-actions">
+              <button class="primary-btn small">重新部署</button>
+              <button class="outline-btn small">查看日志</button>
+              <button class="ghost-btn small">重启容器</button>
+            </div>
+
+            <div class="log-preview">
+              <div class="log-preview-header">
+                <span>实时日志预览</span>
+                <span class="subtle-pill">SSE</span>
+              </div>
+              <pre><code>$ docker build -t stacknest/fpi:a82f31 .
+#1 [internal] load build definition from Dockerfile
+#5 npm run build
+✓ Build completed
+✓ Container healthy
+✓ Nginx route reloaded</code></pre>
+            </div>
+          </section>
+
+          <section class="glass-card">
+            <div class="card-header compact-header">
+              <div>
+                <h2>部署能力范围</h2>
+                <p>归档的后续能力探索，不代表 v0.1 范围</p>
+              </div>
+            </div>
+            <ul class="capability-list">
+              <li>支持上传静态站点 ZIP / 文件夹</li>
+              <li>支持上传 Dockerfile 项目自动构建</li>
+              <li>自动分配子域名</li>
+              <li>实时显示部署日志</li>
+              <li>保留项目列表与状态面板</li>
+              <li>后续再加 Git 部署、环境变量、回滚</li>
+            </ul>
+          </section>
+        </aside>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop hidden" id="projectModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3>新建项目</h3>
+          <p>这里把“新建项目”页面先做成弹窗式设计稿，后面也可以单独拆页。</p>
+        </div>
+        <button class="close-btn" id="closeProjectModal">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="segmented">
+          <button class="segmented-item active">静态站点</button>
+          <button class="segmented-item">Dockerfile</button>
+        </div>
+
+        <div class="form-grid">
+          <label class="form-field wide">
+            <span>项目名称</span>
+            <input type="text" placeholder="例如：landing-lab" />
+          </label>
+          <label class="form-field">
+            <span>子域名</span>
+            <input type="text" placeholder="landing.example.com" />
+          </label>
+          <label class="form-field">
+            <span>发布目录 / 上传包</span>
+            <input type="text" placeholder="拖拽 ZIP 到这里，或选择目录" />
+          </label>
+          <label class="form-field wide">
+            <span>说明</span>
+            <textarea placeholder="给这个项目写一点备注，例如：测试活动页、短期 demo、文档站点等"></textarea>
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="ghost-btn" id="cancelProjectModal">取消</button>
+        <button class="primary-btn">创建并部署</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./script.js"></script>
+</body>
+</html>

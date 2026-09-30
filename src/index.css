@@ -1,0 +1,75 @@
+/* 按 Ant Design 官方方案固定层级，让工具类能覆盖组件样式。 */
+@layer theme, base, antd, components, utilities;
+@import 'tailwindcss' source('./');
+
+@theme {
+  --font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --color-canvas: #f5f6f7;
+  --color-panel: #fff;
+  --color-panel-hover: #fcfcfd;
+  --color-sidebar: #f8f8f9;
+  --color-subtle: #f7f7f8;
+  --color-nav-active: #eceef1;
+  --color-line: #e6e7ea;
+  --color-line-strong: #d8dadd;
+  --color-ink: #18191c;
+  --color-muted: #62666d;
+  --color-dim: #92979f;
+  --color-success: #178f55;
+  --color-success-soft: #edf8f2;
+
+  --text-caption: 0.6875rem;
+  --text-caption--line-height: 1.45;
+  --text-micro: 0.625rem;
+  --text-micro--line-height: 1.45;
+  --radius-panel: 0.875rem;
+  --shadow-panel: 0 1px 2px rgb(16 24 40 / 4%), 0 4px 12px rgb(16 24 40 / 3.5%);
+  --breakpoint-desktop: 56.25rem;
+}
+
+@layer base {
+  :root {
+    color: var(--color-ink);
+    background: var(--color-canvas);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    min-height: 100dvh;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+}
+
+/* 页面切换只做短距离淡入，系统要求减少动态效果时完全关闭。 */
+@layer components {
+  .page-enter {
+    animation: page-enter 220ms ease-out both;
+  }
+
+  @keyframes page-enter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .page-enter {
+      animation: none;
+    }
+  }
+}
