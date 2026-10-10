@@ -3,6 +3,7 @@ import { Alert, Button, Progress, Spin } from 'antd'
 import { getSystem } from '../api/operations'
 import { formatBytes, getErrorMessage } from '../lib/format'
 import type { SystemStatus } from '../types/operations'
+import BackupStatusCard from './BackupStatusCard'
 
 // formatUptime 将服务器运行秒数转换为易读的天、小时和分钟。
 function formatUptime(seconds: number) {
@@ -23,11 +24,11 @@ function MetricCard({
   detail: string
 }) {
   return (
-    <article className="rounded-panel border border-line bg-panel p-5 shadow-panel transition-[transform,box-shadow] duration-200 ease-out motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-lg">
+    <article className="rounded-panel border border-line bg-panel p-4 shadow-panel transition-[transform,box-shadow] duration-200 ease-out motion-safe:hover:-translate-y-0.5 motion-safe:hover:shadow-lg sm:p-5">
       <span className="text-xs text-muted">{title}</span>
       <strong className="mt-2 block text-2xl font-bold tabular-nums">{percent.toFixed(1)}%</strong>
       <Progress percent={Number(percent.toFixed(1))} showInfo={false} className="mt-3" />
-      <p className="mt-2 text-xs text-muted">{detail}</p>
+      <p className="mt-2 text-sm leading-relaxed text-muted sm:text-xs">{detail}</p>
     </article>
   )
 }
@@ -65,7 +66,7 @@ export default function SystemOverview() {
         <p className="text-xs text-dim">
           {updatedAt ? `最近更新：${updatedAt.toLocaleTimeString('zh-CN')}` : '正在读取服务器状态'}
         </p>
-        <Button onClick={() => void loadSystem()} loading={loading}>
+        <Button className="h-11 sm:h-8" onClick={() => void loadSystem()} loading={loading}>
           刷新
         </Button>
       </div>
@@ -94,9 +95,9 @@ export default function SystemOverview() {
               detail={`可用 ${formatBytes(status.diskFreeBytes)} / 总量 ${formatBytes(status.diskTotalBytes)}`}
             />
           </div>
-          <div className="mt-4 rounded-panel border border-line bg-panel p-4.5 text-sm shadow-panel">
+          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-panel border border-line bg-panel p-4 text-sm shadow-panel sm:p-5">
             <span className="text-muted">服务器运行时间</span>
-            <strong className="ml-3 font-semibold tabular-nums">
+            <strong className="font-semibold tabular-nums">
               {formatUptime(status.uptimeSeconds)}
             </strong>
           </div>
@@ -105,6 +106,7 @@ export default function SystemOverview() {
           </p>
         </>
       )}
+      <BackupStatusCard />
     </section>
   )
 }

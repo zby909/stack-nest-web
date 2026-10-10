@@ -1,5 +1,11 @@
 import { http } from '../lib/http'
-import type { ActivityEvent, StorageStatus, SystemStatus } from '../types/operations'
+import type {
+  ActivityPage,
+  ActivityQuery,
+  BackupStatus,
+  StorageStatus,
+  SystemStatus,
+} from '../types/operations'
 
 // getStorage 查询磁盘状态和服务端的统一上传限制。
 export async function getStorage() {
@@ -13,8 +19,18 @@ export async function getSystem() {
   return data
 }
 
-// listActivity 查询最近一百条业务操作记录。
-export async function listActivity() {
-  const { data } = await http.get<{ events: ActivityEvent[] }>('/api/activity')
-  return data.events
+// listActivity 在所有保留日志中查询当前页，切换筛选或离开页面时可以取消。
+export async function listActivity(params: ActivityQuery, signal?: AbortSignal) {
+  const { data } = await http.get<ActivityPage>('/api/activity', {
+    params,
+    signal,
+    timeout: 15_000,
+  })
+  return data
+}
+
+// getBackupStatus 获取仅管理员可见的备份摘要。
+export async function getBackupStatus() {
+  const { data } = await http.get<BackupStatus>('/api/backups/status', { timeout: 10_000 })
+  return data
 }

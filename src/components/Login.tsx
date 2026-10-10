@@ -3,6 +3,7 @@ import axios from 'axios'
 import { Alert, Button, Form, Input } from 'antd'
 import { requestLoginCode, verifyLoginCode } from '../api/auth'
 import type { AuthUser } from '../types/auth'
+import ThemeSwitcher from './ThemeSwitcher'
 
 interface LoginProps {
   onLogin: (user: AuthUser) => void
@@ -67,9 +68,12 @@ function Login({ onLogin }: LoginProps) {
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-canvas px-4 py-10">
-      <section className="page-enter w-full max-w-md rounded-panel border border-line bg-panel p-7 shadow-panel sm:p-9">
-        <div className="mb-7 grid size-10 place-items-center rounded-xl bg-ink text-lg font-bold text-white">
-          S
+      <section className="page-enter w-full max-w-md rounded-panel border border-line bg-panel p-5 shadow-panel sm:p-9">
+        <div className="mb-7 flex items-center justify-between gap-3">
+          <div className="grid size-10 place-items-center rounded-xl bg-ink text-lg font-bold text-panel">
+            S
+          </div>
+          <ThemeSwitcher />
         </div>
         <h1 className="text-2xl font-bold tracking-tight">登录 StackNest</h1>
         <p className="mt-2 text-sm text-muted">使用已获准的邮箱接收一次性验证码。</p>
@@ -124,9 +128,10 @@ function Login({ onLogin }: LoginProps) {
             {sent ? '登录' : remaining > 0 ? `${remaining} 秒后重发` : '发送验证码'}
           </Button>
           {sent && (
-            <div className="mt-3 flex justify-between text-xs">
+            <div className="mt-3 flex flex-wrap justify-between gap-2 text-xs">
               <Button
                 type="link"
+                className="min-h-11"
                 size="small"
                 disabled={busy}
                 onClick={() => {
@@ -139,6 +144,7 @@ function Login({ onLogin }: LoginProps) {
               </Button>
               <Button
                 type="link"
+                className="min-h-11"
                 size="small"
                 disabled={busy || remaining > 0}
                 onClick={() => void handleRequestCode()}

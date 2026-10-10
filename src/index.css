@@ -29,10 +29,29 @@
 
 @layer base {
   :root {
+    color-scheme: light;
     color: var(--color-ink);
     background: var(--color-canvas);
     font-synthesis: none;
     text-rendering: optimizeLegibility;
+  }
+
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+    --color-canvas: #15181d;
+    --color-panel: #1d222a;
+    --color-panel-hover: #232a34;
+    --color-sidebar: #191d24;
+    --color-subtle: #252b35;
+    --color-nav-active: #303946;
+    --color-line: #343c49;
+    --color-line-strong: #505c6d;
+    --color-ink: #e8edf5;
+    --color-muted: #b0bac8;
+    --color-dim: #9ba7b8;
+    --color-success: #70dba7;
+    --color-success-soft: #1e3a30;
+    --shadow-panel: 0 1px 2px rgb(0 0 0 / 12%), 0 4px 12px rgb(0 0 0 / 10%);
   }
 
   html {

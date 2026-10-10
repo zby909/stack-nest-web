@@ -1,15 +1,15 @@
 import { http } from '../lib/http'
-import type { AuthUser, UserListResponse } from '../types/auth'
+import type { AddUserResponse, UserListResponse } from '../types/auth'
 
 // 管理员查询获准登录的邮箱。
 export async function listUsers() {
   const { data } = await http.get<UserListResponse>('/api/users')
-  return data.users
+  return data
 }
 
-// 管理员添加普通用户邮箱。
-export async function addUser(email: string) {
-  const { data } = await http.post<AuthUser>('/api/users', { email })
+// 管理员添加普通用户邮箱，默认不发送邀请。
+export async function addUser(email: string, sendInvitation = false) {
+  const { data } = await http.post<AddUserResponse>('/api/users', { email, sendInvitation })
   return data
 }
 

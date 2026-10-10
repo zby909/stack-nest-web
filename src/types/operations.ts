@@ -26,7 +26,23 @@ export type SystemStatus = {
 export type ActivityEvent = {
   id: string
   createdAt: string
-  action: 'upload' | 'update' | 'rollback' | 'delete'
+  action:
+    | 'upload'
+    | 'update'
+    | 'rollback'
+    | 'delete'
+    | 'edit'
+    | 'export'
+    | 'pause'
+    | 'resume'
+    | 'draft'
+    | 'publish'
+    | 'discard'
+    | 'app-deploy'
+    | 'app-start'
+    | 'app-stop'
+    | 'app-restart'
+    | 'app-delete'
   actor: string
   slug?: string
   fileName?: string
@@ -36,4 +52,32 @@ export type ActivityEvent = {
   status: 'succeeded' | 'failed'
   message: string
   durationMs: number
+}
+
+export type BackupStatus = {
+  state: 'not_configured' | 'never' | 'running' | 'succeeded' | 'failed' | 'interrupted'
+  lastAttempt?: { startedAt: string; finishedAt?: string; stage: string }
+  lastSuccess?: { createdAt: string; databaseBytes: number; filesBytes: number; totalBytes: number }
+  retainedCount: number
+  retainedBytes: number
+  overdue: boolean
+}
+
+export type ActivityQuery = {
+  page: number
+  pageSize: number
+  slug?: string
+  action?: ActivityEvent['action']
+  status?: ActivityEvent['status']
+  actor?: string
+  q?: string
+  from?: string
+  to?: string
+}
+
+export type ActivityPage = {
+  events: ActivityEvent[]
+  total: number
+  page: number
+  pageSize: number
 }

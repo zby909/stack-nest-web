@@ -1,12 +1,15 @@
-import { useEffect, useState } from 'react'
+import { lazy, useEffect, useState } from 'react'
 import axios from 'axios'
 import { Alert, Button, Spin } from 'antd'
 import { getSession, logout } from '../api/auth'
 import { http } from '../lib/http'
 import { navigate, pageFromPath, usePathname } from '../lib/router'
+import { clearLoginTarget, consumeLoginTarget, rememberLoginTarget } from '../lib/loginRedirect'
 import type { AuthUser } from '../types/auth'
-import App from '../App'
-import Login from './Login'
+import LazyPanel from './LazyPanel'
+
+const App = lazy(() => import('../App'))
+const Login = lazy(() => import('./Login'))
 
 // AuthGate 在显示管理内容前确认服务端会话。
 function AuthGate() {
@@ -59,14 +62,13 @@ function AuthGate() {
     if (loading || (error && !user)) return
     if (!user) {
       if (pathname !== '/login') {
-        if (pageFromPath(pathname)) sessionStorage.setItem('stacknest:returnTo', pathname)
+        if (pageFromPath(pathname)) rememberLoginTarget(pathname)
         navigate('/login', true)
       }
       return
     }
     if (pathname === '/' || pathname === '/login') {
-      const target = sessionStorage.getItem('stacknest:returnTo') ?? '/projects'
-      sessionStorage.removeItem('stacknest:returnTo')
+      const target = consumeLoginTarget()
       const page = pageFromPath(target)
       navigate(
         page && (user.role === 'admin' || (page !== 'users' && page !== 'system'))
@@ -88,7 +90,7 @@ function AuthGate() {
     setError('')
     try {
       await logout()
-      sessionStorage.removeItem('stacknest:returnTo')
+      clearLoginTarget()
       navigate('/login', true)
       setUser(null)
     } catch {
@@ -117,7 +119,11 @@ function AuthGate() {
 
   if (!user) {
     if (pathname !== '/login') return null
-    return <Login onLogin={setUser} />
+    return (
+      <LazyPanel>
+        <Login onLogin={setUser} />
+      </LazyPanel>
+    )
   }
 
   const page = pageFromPath(pathname)
@@ -125,8 +131,17 @@ function AuthGate() {
 
   return (
     <>
-      {error && <Alert className="fixed top-4 right-4 z-50" type="error" showIcon title={error} />}
-      <App user={user} page={page} onLogout={() => void handleLogout()} loggingOut={loggingOut} />
+      {error && (
+        <Alert
+          className="fixed top-4 right-4 left-4 z-50 sm:left-auto sm:max-w-md"
+          type="error"
+          showIcon
+          title={error}
+        />
+      )}
+      <LazyPanel>
+        <App user={user} page={page} onLogout={() => void handleLogout()} loggingOut={loggingOut} />
+      </LazyPanel>
     </>
   )
 }

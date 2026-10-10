@@ -1,8 +1,11 @@
 export type Deployment = {
+  notes?: string
+  previewUrl?: string
   id: string
   status: string
   fileName: string
   createdAt: string
+  files?: { bytes: number; count: number }
 }
 
 export type Project = {
@@ -16,6 +19,7 @@ export type Project = {
   siteUrl: string
   createdAt: string
   updatedAt: string
+  draft?: Deployment
   deployments?: Deployment[]
 }
 
@@ -24,6 +28,7 @@ export type ProjectListResponse = {
 }
 
 export type CreateProjectForm = {
+  notes?: string
   name: string
   slug?: string
   description?: string

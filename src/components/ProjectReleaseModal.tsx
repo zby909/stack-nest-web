@@ -1,6 +1,9 @@
-import { useState } from 'react'
-import { Alert, Modal, Progress, Upload } from 'antd'
-import { rollbackProject, updateProject } from '../api/projects'
+import { useEffect, useState } from 'react'
+import { Alert, Input, Modal, Upload } from 'antd'
+import { rollbackProject } from '../api/projects'
+import { useResumableUpload } from '../lib/useResumableUpload'
+import UploadProgress from './UploadProgress'
+import type { RecoveredUpload } from './UploadRecoveryBanner'
 import { getStorage } from '../api/operations'
 import { formatBytes, getErrorMessage } from '../lib/format'
 import type { Project } from '../types/project'
@@ -8,39 +11,63 @@ import type { Project } from '../types/project'
 // ProjectReleaseModal 确认更新或回退，明确保留范围并锁定正在执行的发布操作。
 export default function ProjectReleaseModal({
   project,
+  userId,
   mode,
+  recovery,
   maxUploadBytes,
   onClose,
   onComplete,
 }: {
   project: Project
+  userId: string
   mode: 'update' | 'rollback'
+  recovery?: RecoveredUpload
   maxUploadBytes: number
   onClose: () => void
   onComplete: (project: Project) => void
 }) {
   const [file, setFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
-  const [progress, setProgress] = useState(0)
+  const upload = useResumableUpload(userId)
   const [error, setError] = useState('')
+  const [notes, setNotes] = useState(recovery?.record.target.notes ?? '')
   const current = project.deployments?.[0]
   const previous = project.deployments?.[1]
   const revert = mode === 'rollback'
+  const restore = upload.restore
+  useEffect(() => {
+    if (recovery) restore(recovery.record, recovery.status)
+  }, [recovery, restore])
 
   // submit 先检查最新上传策略；回退只切换现有文件，不要求预留上传空间。
   const submit = async () => {
-    if (busy || !current || (!revert && !file)) return
+    if (busy || (revert && !current) || (!revert && !file && !upload.readyToComplete)) return
+    if (new TextEncoder().encode(notes).length > 4096) {
+      setError('更新说明不能超过 4096 字节')
+      return
+    }
     setBusy(true)
     setError('')
-    setProgress(0)
     try {
       let result: Project
       if (revert) {
-        result = await rollbackProject(project.slug, current.id)
+        result = await rollbackProject(project.slug, current!.id)
       } else {
-        const storage = await getStorage()
-        if (!storage.uploadAllowed) throw new Error(storage.reason)
-        result = await updateProject(project.slug, current.id, file!, setProgress)
+        if (!upload.readyToComplete) {
+          const storage = await getStorage()
+          if (!storage.uploadAllowed) throw new Error(storage.reason)
+        }
+        const uploaded = upload.readyToComplete
+          ? await upload.complete()
+          : await upload.start(file!, {
+              kind: 'update',
+              preview: true,
+              notes,
+              slug: project.slug,
+              expectedId: recovery?.record.target.expectedId ?? current?.id ?? '',
+            })
+        if (!uploaded) return
+        result = uploaded
       }
       onComplete(result)
     } catch (failure) {
@@ -53,21 +80,40 @@ export default function ProjectReleaseModal({
   return (
     <Modal
       open
-      title={`${revert ? '回退' : '更新'}项目 “${project.name}”`}
-      okText={revert ? '确认回退' : '更新并部署'}
+      centered
+      title={
+        <span className="block pr-7 break-all">
+          {revert ? '回退' : '更新'}项目 “{project.name}”
+        </span>
+      }
+      okText={
+        revert
+          ? '确认回退'
+          : upload.readyToComplete
+            ? '确认上传结果'
+            : upload.hasSession
+              ? '继续上传'
+              : '上传待发布版'
+      }
       cancelText="取消"
       onOk={() => void submit()}
       onCancel={onClose}
       confirmLoading={busy}
-      okButtonProps={{ disabled: !current || (revert ? !previous : !file) }}
-      cancelButtonProps={{ disabled: busy }}
-      closable={!busy}
-      keyboard={!busy}
-      mask={{ closable: !busy }}
+      okButtonProps={{
+        disabled:
+          upload.discarding ||
+          (!upload.readyToComplete && !!project.draft) ||
+          (revert ? !previous : !file && !upload.readyToComplete),
+        className: 'h-11 sm:h-8',
+      }}
+      cancelButtonProps={{ disabled: busy || upload.discarding, className: 'h-11 sm:h-8' }}
+      closable={!busy && !upload.discarding}
+      keyboard={!busy && !upload.discarding}
+      mask={{ closable: !busy && !upload.discarding }}
     >
       <p className="mb-4 text-sm text-muted">项目网址和归属保持不变。</p>
       <div className="mb-4 space-y-2 rounded-lg bg-subtle p-3 text-sm">
-        <p className="break-all">当前版本：{current?.fileName ?? '未知'}</p>
+        <p className="break-all">当前版本：{current?.fileName ?? '尚未发布'}</p>
         {previous && (
           <p className="break-all text-muted">
             上一版：{previous.fileName} · {new Date(previous.createdAt).toLocaleString('zh-CN')}
@@ -83,6 +129,19 @@ export default function ProjectReleaseModal({
         />
       ) : (
         <>
+          <label className="mb-2 block text-sm" htmlFor="release-notes">
+            更新说明（可选）
+          </label>
+          <Input.TextArea
+            id="release-notes"
+            className="mb-4"
+            rows={3}
+            value={notes}
+            disabled={busy || upload.hasSession}
+            onChange={(event) => setNotes(event.target.value)}
+            placeholder="这次更新了什么？"
+            maxLength={4096}
+          />
           <Upload.Dragger
             disabled={busy}
             accept=".zip,.rar"
@@ -108,18 +167,11 @@ export default function ProjectReleaseModal({
             </p>
           </Upload.Dragger>
           <p className="mt-3 text-xs text-muted">
-            校验通过后替换站点，当前版保留用于回退。仅保留两版，更早的文件会被清理。
+            上传后先生成独立预览，确认发布才会替换站点。保留当前正式版、上一正式版，另保留一个待发布版。
           </p>
         </>
       )}
-      {busy && !revert && (
-        <div className="mt-4" aria-live="polite">
-          <Progress percent={progress} status="active" />
-          <p className="text-xs text-muted">
-            {progress >= 100 ? '文件已传输，正在校验和发布…' : '正在上传新版本…'}
-          </p>
-        </div>
-      )}
+      {!revert && <UploadProgress upload={upload} />}
       {error && <Alert className="mt-4" type="error" showIcon title={error} />}
     </Modal>
   )

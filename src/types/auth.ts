@@ -7,4 +7,9 @@ export interface AuthUser {
 
 export interface UserListResponse {
   users: AuthUser[]
+  invitationLoginUrl?: string
+}
+
+export interface AddUserResponse extends AuthUser {
+  invitation: 'not_requested' | 'sent' | 'failed'
 }

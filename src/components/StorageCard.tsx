@@ -16,12 +16,12 @@ export default function StorageCard({
 }) {
   return (
     <section
-      className="mb-4 rounded-panel border border-line bg-panel p-4.5 shadow-panel"
+      className="mb-4 rounded-panel border border-line bg-panel p-4 shadow-panel sm:p-5"
       aria-label="存储空间"
     >
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold">服务器存储</h2>
-        <Button size="small" onClick={refresh} loading={loading}>
+        <Button className="h-11 shrink-0 sm:h-8" onClick={refresh} loading={loading}>
           刷新
         </Button>
       </div>
@@ -43,7 +43,7 @@ export default function StorageCard({
             showInfo={false}
             status={status.uploadAllowed ? 'normal' : 'exception'}
           />
-          <p className="mt-1 text-xs text-muted">
+          <p className="mt-1 text-xs leading-relaxed text-muted">
             归档上限 {formatBytes(status.maxUploadBytes)}，解压上限{' '}
             {formatBytes(status.maxExpandedBytes)}，最多 {status.maxFiles} 个条目。 磁盘达到{' '}
             {status.maxUsedPercent}% 或无法预留处理空间时暂停上传。

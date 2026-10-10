@@ -1,4 +1,6 @@
 dist
+test-results
+playwright-report
 node_modules
 .history
 pnpm-lock.yaml
