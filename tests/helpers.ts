@@ -39,7 +39,14 @@ export async function openUsage(page: Page, row: Locator) {
 // chooseTheme 通过用户菜单选择外观，不直接改写存储或 DOM。
 export async function chooseTheme(page: Page, label: string) {
   await page.getByRole('button', { name: /^切换主题/ }).click()
-  await page.getByRole('menuitem', { name: label, exact: true }).click()
+  const item = page.getByRole('menuitem', { name: label, exact: true })
+  await expect(item).toBeVisible()
+  // 等菜单入场完成，避免触屏下自动滚动与浮层重新定位竞争。
+  await expect(page.locator('.ant-dropdown:visible')).not.toHaveClass(
+    /\bant-slide-\w+-(?:appear|enter)(?:-\w+)?\b/,
+  )
+  await item.click()
+  await expect(page.getByRole('button', { name: `切换主题，当前：${label}` })).toBeVisible()
 }
 
 // assertFits 检查页面和弹窗不会撑出水平滚动条。
