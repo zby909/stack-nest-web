@@ -1,7 +1,7 @@
 export interface AuthUser {
   id: string
   email: string
-  role: 'admin' | 'user'
+  role: 'superadmin' | 'admin' | 'user'
   createdAt: string
 }
 

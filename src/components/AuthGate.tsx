@@ -7,6 +7,7 @@ import { navigate, pageFromPath, usePathname } from '../lib/router'
 import { clearLoginTarget, consumeLoginTarget, rememberLoginTarget } from '../lib/loginRedirect'
 import type { AuthUser } from '../types/auth'
 import LazyPanel from './LazyPanel'
+import { canOpenPage } from '../lib/permissions'
 
 const App = lazy(() => import('../App'))
 const Login = lazy(() => import('./Login'))
@@ -70,16 +71,11 @@ function AuthGate() {
     if (pathname === '/' || pathname === '/login') {
       const target = consumeLoginTarget()
       const page = pageFromPath(target)
-      navigate(
-        page && (user.role === 'admin' || (page !== 'users' && page !== 'system'))
-          ? target
-          : '/projects',
-        true,
-      )
+      navigate(page && canOpenPage(user, page) ? target : '/projects', true)
       return
     }
     const page = pageFromPath(pathname)
-    if (!page || (user.role !== 'admin' && (page === 'users' || page === 'system'))) {
+    if (!page || !canOpenPage(user, page)) {
       navigate('/projects', true)
     }
   }, [loading, error, user, pathname])
@@ -127,7 +123,7 @@ function AuthGate() {
   }
 
   const page = pageFromPath(pathname)
-  if (!page || (user.role !== 'admin' && (page === 'users' || page === 'system'))) return null
+  if (!page || !canOpenPage(user, page)) return null
 
   return (
     <>

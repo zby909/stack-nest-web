@@ -14,10 +14,12 @@ type Values = Omit<AppInput, 'env' | 'registry'> & {
 // DockerAppForm 每次打开都重新创建，关闭时销毁未提交的敏感值。
 export default function DockerAppForm({
   target,
+  maxMemoryMiB,
   onClose,
   onSaved,
 }: {
   target: AppView | null
+  maxMemoryMiB: number
   onClose: () => void
   onSaved: () => void
 }) {
@@ -136,8 +138,20 @@ export default function DockerAppForm({
           <Form.Item name="port" label="容器端口" rules={[{ required: true }]}>
             <InputNumber min={1} max={65535} precision={0} className="w-full" />
           </Form.Item>
-          <Form.Item name="memoryMiB" label="内存上限 (MiB)" rules={[{ required: true }]}>
-            <InputNumber min={64} max={512} step={64} precision={0} className="w-full" />
+          <Form.Item
+            name="memoryMiB"
+            label="内存上限 (MiB)"
+            rules={[
+              { required: true },
+              {
+                type: 'number',
+                min: 64,
+                max: maxMemoryMiB,
+                message: `内存须为 64–${maxMemoryMiB} MiB`,
+              },
+            ]}
+          >
+            <InputNumber min={64} max={maxMemoryMiB} step={64} precision={0} className="w-full" />
           </Form.Item>
           <Form.Item name="cpus" label="CPU 上限 (核)" rules={[{ required: true }]}>
             <InputNumber min={0.1} max={1} step={0.1} precision={1} className="w-full" />

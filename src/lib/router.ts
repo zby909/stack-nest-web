@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 
-export type Page = 'projects' | 'apps' | 'activity' | 'users' | 'system'
+export type Page = 'projects' | 'apps' | 'activity' | 'users' | 'system' | 'network'
 
 const navigationEvent = 'stacknest:navigate'
 
@@ -34,6 +34,7 @@ export function usePathname() {
 // pageFromPath 将固定的管理端地址映射为页面。
 export function pageFromPath(path: string): Page | null {
   if (projectRoute(path)) return 'projects'
+  if (appRoute(path)) return 'apps'
   switch (path) {
     case '/projects':
       return 'projects'
@@ -45,9 +46,18 @@ export function pageFromPath(path: string): Page | null {
       return 'users'
     case '/system':
       return 'system'
+    case '/network':
+      return 'network'
     default:
       return null
   }
+}
+
+// appRoute 使用应用 UUID 区分详情，日志页具有独立可收藏地址。
+export function appRoute(path: string): { id: string; tab: 'overview' | 'logs' } | null {
+  const match =
+    /^\/apps\/([a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12})(?:\/(overview|logs))?$/.exec(path)
+  return match ? { id: match[1], tab: match[2] === 'logs' ? 'logs' : 'overview' } : null
 }
 
 export type ProjectTab = 'overview' | 'versions' | 'files' | 'activity' | 'settings'

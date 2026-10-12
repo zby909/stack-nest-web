@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { admin } from './data.ts'
-import type { AppView, AppInput } from '../src/types/app.ts'
+import type { AppView, AppInput, AppLimitsView } from '../src/types/app.ts'
 
 const initial: AppView = {
   app: {
@@ -44,12 +44,22 @@ const initial: AppView = {
 // installAPI 在独立上下文模拟应用接口；未知 API 立即失败，测试不连接任何服务器。
 async function installAPI(
   page: import('@playwright/test').Page,
-  options: { empty?: boolean; user?: boolean } = {},
+  options: { empty?: boolean; user?: boolean; superadmin?: boolean } = {},
 ) {
   const state = {
     apps: options.empty ? ([] as AppView[]) : [structuredClone(initial)],
     writes: [] as { path: string; body: Record<string, unknown> }[],
     failed: false,
+    logText: '<script>window.logExecuted = true</script>\n[已隐藏]',
+    logReads: 0,
+    limits: {
+      maxApps: 3,
+      totalMemoryMiB: 768,
+      revision: 1,
+      usedApps: options.empty ? 0 : 1,
+      allocatedMemoryMiB: options.empty ? 0 : 128,
+      maxTotalMemoryMiB: 3072,
+    } as AppLimitsView,
   }
   await page.route('**/api/**', async (route) => {
     const request = route.request()
@@ -58,17 +68,51 @@ async function installAPI(
     // reply 统一模拟 JSON 响应。
     const reply = (body: unknown, status = 200) => route.fulfill({ status, json: body })
     if (path === '/api/auth/session')
-      return reply(options.user ? { ...admin, role: 'user' } : admin)
+      return reply(
+        options.superadmin
+          ? { ...admin, role: 'superadmin' }
+          : options.user
+            ? { ...admin, role: 'user' }
+            : admin,
+      )
     if (path === '/api/apps' && method === 'GET') {
       if (state.failed) return reply({ error: '暂时无法获取应用' }, 503)
       return reply({
         apps: state.apps,
         available: true,
-        limits: { maxApps: 3, totalMemoryMiB: 768, maxMemoryMiB: 512 },
+        limits: {
+          maxApps: state.limits.maxApps,
+          totalMemoryMiB: state.limits.totalMemoryMiB,
+          maxMemoryMiB: 1024,
+        },
       })
     }
-    if (path.endsWith('/logs'))
-      return reply({ text: '<script>window.logExecuted = true</script>\n[已隐藏]' })
+    if (path === '/api/apps/limits') {
+      if (!options.superadmin) return reply({ error: '仅超级管理员可配置应用资源' }, 403)
+      if (method === 'GET') return reply(state.limits)
+      if (method === 'PUT') {
+        const body = request.postDataJSON() as Record<string, unknown>
+        state.writes.push({ path, body })
+        if (body.expectedRevision !== state.limits.revision)
+          return reply({ error: '资源配置已被更新，请刷新后重试' }, 409)
+        Object.assign(state.limits, body, { revision: state.limits.revision + 1 })
+        return reply(state.limits)
+      }
+    }
+    if (path.endsWith('/logs')) {
+      state.logReads++
+      return reply({ text: state.logText })
+    }
+    if (method === 'GET' && path.startsWith('/api/apps/')) {
+      const item = state.apps.find((view) => path === `/api/apps/${view.app.id}`)
+      return item
+        ? reply({
+            ...item,
+            available: true,
+            limits: { maxApps: 3, totalMemoryMiB: 768, maxMemoryMiB: 1024 },
+          })
+        : reply({ error: '应用不存在或无权查看' }, 404)
+    }
     if (method === 'POST' || method === 'PUT') {
       const body = request.postDataJSON() as Record<string, unknown>
       state.writes.push({ path, body })
@@ -146,6 +190,28 @@ test('部署与编辑应用保留敏感配置', async ({ page }) => {
     healthPath: '/health',
   })
   expect(state.writes[1].body).not.toHaveProperty('registry')
+})
+
+// 更高的实例预算允许 1 GiB 应用，数字输入会将越界值校正到实际上限。
+test('1 GiB 应用内存与越界输入', async ({ page }) => {
+  const state = await installAPI(page, { empty: true, user: true })
+  state.limits.totalMemoryMiB = 2048
+  await page.goto('/apps')
+  await page.getByRole('button', { name: '＋ 部署应用' }).click()
+  const dialog = page.getByRole('dialog')
+  const memory = dialog.getByLabel('内存上限 (MiB)', { exact: true })
+  await expect(memory).toHaveValue('256')
+  await expect(memory).toHaveAttribute('aria-valuemax', '1024')
+  await dialog.getByLabel('应用名称', { exact: true }).fill('Memory limit')
+  await dialog.getByLabel('应用标识', { exact: true }).fill('memory-limit')
+  await dialog.getByLabel('镜像地址', { exact: true }).fill('example/http:v1')
+  await memory.fill('1025')
+  await memory.press('Tab')
+  await expect(memory).toHaveValue('1024')
+  expect(state.writes).toHaveLength(0)
+  await dialog.getByRole('button', { name: '开始部署', exact: true }).click()
+  await expect(dialog).not.toBeVisible()
+  expect(state.writes[0].body).toMatchObject({ memoryMiB: 1024 })
 })
 
 // 删除必须确认；取消不发请求，日志只按文本呈现，旧页面也能看到排队状态。
@@ -246,4 +312,148 @@ test('健康检查路径拒绝外部地址并支持留空', async ({ page }) => 
   await dialog.getByRole('button', { name: '开始部署', exact: true }).click()
   await expect(dialog).not.toBeVisible()
   expect(state.writes[0].body.healthPath).toBe('')
+})
+
+// 只有超管能打开实例预算，冲突保留输入，重新加载后再保存使用新版本。
+test('超管资源配置与版本冲突', async ({ page }) => {
+  const state = await installAPI(page, { superadmin: true })
+  await page.goto('/apps')
+  await page.getByRole('button', { name: '资源配置', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByText('已预留：1 个应用，128 MiB 内存。')).toBeVisible()
+  await page.screenshot({
+    path: `test-results/resources-modal-${test.info().project.name}.png`,
+    fullPage: true,
+    animations: 'disabled',
+  })
+  await dialog.getByLabel('应用总数上限', { exact: true }).fill('6')
+  await dialog.getByLabel('应用内存总预算（MiB）', { exact: true }).fill('1536')
+  state.limits.revision = 2
+  await dialog.getByRole('button', { name: '保存配置', exact: true }).click()
+  await expect(dialog.getByText(/资源配置已被更新/)).toBeVisible()
+  await expect(dialog.getByLabel('应用总数上限', { exact: true })).toHaveValue('6')
+  expect(state.writes[0].body).toEqual({ maxApps: 6, totalMemoryMiB: 1536, expectedRevision: 1 })
+  await dialog.getByRole('button', { name: '重新加载', exact: true }).click()
+  await expect(dialog.getByLabel('应用总数上限', { exact: true })).toHaveValue('3')
+  await dialog.getByLabel('应用总数上限', { exact: true }).fill('6')
+  await dialog.getByLabel('应用内存总预算（MiB）', { exact: true }).fill('1536')
+  await dialog.getByRole('button', { name: '保存配置', exact: true }).click()
+  await expect(dialog).not.toBeVisible()
+  expect(state.writes[1].body).toEqual({ maxApps: 6, totalMemoryMiB: 1536, expectedRevision: 2 })
+  await expect(page.getByText(/最多 6 个应用，内存总额 1536 MiB/)).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  )
+  await page.screenshot({
+    path: `test-results/resources-${test.info().project.name}.png`,
+    fullPage: true,
+    animations: 'disabled',
+  })
+})
+
+// 管理员和普通用户不会看到或请求实例维护接口。
+for (const ordinary of [false, true]) {
+  test(`资源配置入口隐藏：${ordinary ? '普通用户' : '管理员'}`, async ({ page }) => {
+    await installAPI(page, { user: ordinary })
+    await page.goto('/apps')
+    await expect(page.getByRole('article', { name: 'Small HTTP' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '资源配置', exact: true })).toHaveCount(0)
+  })
+}
+
+// 刷新仍读取当前代次的阶段，旧代次快照不能覆盖当前状态，也不伪造整体百分比。
+test('部署进度、失败阶段和旧代次隔离', async ({ page }) => {
+  const state = await installAPI(page)
+  const app = state.apps[0]
+  app.app.status = 'deploying'
+  app.app.generation = 2
+  app.progress = {
+    generation: 2,
+    stage: 'pulling',
+    downloadedBytes: 1024,
+    totalBytes: 4096,
+    updatedAt: '2026-10-11T08:00:00Z',
+  }
+  await page.goto('/apps')
+  const progress = page.getByRole('status', { name: '操作进度' })
+  await expect(progress.getByText('拉取镜像', { exact: true })).toBeVisible()
+  await expect(progress.getByText('镜像层下载：1.0 KiB / 当前已知 4.0 KiB')).toBeVisible()
+  await expect(progress.getByText(/关闭页面后继续/)).toBeVisible()
+  await page.reload()
+  await expect(progress.getByText('拉取镜像', { exact: true })).toBeVisible()
+  app.progress.stage = 'healthchecking'
+  await page.getByRole('button', { name: /^刷\s*新$/ }).click()
+  await expect(progress.getByText('等待健康检查', { exact: true })).toBeVisible()
+  app.progress = { generation: 1, stage: 'pulling', updatedAt: '2026-10-11T07:00:00Z' }
+  await page.getByRole('button', { name: /^刷\s*新$/ }).click()
+  await expect(progress.getByText('正在执行，等待阶段反馈')).toBeVisible()
+  await expect(progress.getByText('拉取镜像', { exact: true })).toHaveCount(0)
+  app.app.status = 'error'
+  app.app.error = '新版本未通过健康检查，已尝试恢复旧容器'
+  app.progress = {
+    generation: 2,
+    stage: 'failed',
+    failedStage: 'healthchecking',
+    updatedAt: '2026-10-11T08:01:00Z',
+  }
+  await page.getByRole('button', { name: /^刷\s*新$/ }).click()
+  await expect(progress.getByText('失败阶段：等待健康检查')).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  )
+  await page.screenshot({
+    path: `test-results/progress-${test.info().project.name}.png`,
+    fullPage: true,
+    animations: 'disabled',
+  })
+})
+
+// 详情直接访问与刷新、磁盘临界预警、日志控制在桌面和手机采用同一路由。
+test('详情路由、磁盘配额与日志快照', async ({ page }) => {
+  const state = await installAPI(page)
+  state.apps[0].runtime!.disk = {
+    writable: { usedBytes: 950 * 1024 * 1024, limitBytes: 1024 ** 3, source: 'xfs' },
+    persistent: { source: 'unavailable' },
+    sampledAt: new Date().toISOString(),
+  }
+  await page.goto('/apps')
+  await page.getByRole('link', { name: 'Small HTTP', exact: true }).click()
+  await expect(page).toHaveURL(new RegExp(`/apps/${initial.app.id}$`))
+  await expect(page.getByText('接近配额上限，继续写入可能失败。')).toBeVisible()
+  await expect(page.getByText('用量暂不可用')).toBeVisible()
+  await page.reload()
+  await expect(page.getByText('环境变量名称（不显示值）')).toBeVisible()
+  await page.screenshot({
+    path: `test-results/app-detail-${test.info().project.name}.png`,
+    fullPage: true,
+    animations: 'disabled',
+  })
+  await page.getByRole('button', { name: /^日\s*志$/ }).click()
+  await page.getByRole('dialog').getByRole('link', { name: '在详情页查看日志' }).click()
+  await expect(page.getByRole('dialog')).not.toBeVisible()
+  await expect(page).toHaveURL(/\/logs$/)
+  await expect(page.getByRole('checkbox', { name: '自动刷新' })).toBeChecked()
+  const before = state.logReads
+  state.logText = 'line-one\nerror-needle\nline-three'
+  await expect.poll(() => state.logReads, { timeout: 12000 }).toBeGreaterThan(before)
+  await page.getByRole('checkbox', { name: '自动刷新' }).uncheck()
+  await page.getByRole('checkbox', { name: '跟随最新' }).uncheck()
+  await expect(page.getByText(/已暂停跟随/)).toBeVisible()
+  await page.getByRole('textbox', { name: '搜索运行日志' }).fill('needle')
+  await expect(page.getByLabel('运行日志内容')).toHaveText('error-needle')
+  await page.getByRole('textbox', { name: '搜索运行日志' }).fill('not-found')
+  await expect(page.getByLabel('运行日志内容')).toHaveText('没有匹配的日志')
+  await page.goBack()
+  await expect(page.getByText('环境变量名称（不显示值）')).toBeVisible()
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
+    .toBe(true)
+})
+
+// 不存在的 UUID 页面不可显示其他应用信息。
+test('应用详情不存在时保持权限边界', async ({ page }) => {
+  await installAPI(page)
+  await page.goto('/apps/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')
+  await expect(page.getByText('应用不存在或无权查看')).toBeVisible()
+  await expect(page.getByText('Small HTTP', { exact: true })).toHaveCount(0)
 })

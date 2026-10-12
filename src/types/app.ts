@@ -21,7 +21,31 @@ export type ContainerApp = {
   updatedAt: string
   url: string
 }
+export type AppProgress = {
+  generation: number
+  stage: string
+  failedStage?: string
+  downloadedBytes?: number
+  totalBytes?: number
+  updatedAt: string
+}
+export type AppLimitsView = {
+  maxApps: number
+  totalMemoryMiB: number
+  revision: number
+  usedApps: number
+  allocatedMemoryMiB: number
+  maxTotalMemoryMiB: number
+}
+export type DiskArea = {
+  usedBytes?: number
+  limitBytes?: number
+  usedInodes?: number
+  limitInodes?: number
+  source: 'xfs' | 'docker-estimate' | 'quota-disabled' | 'unavailable'
+}
 export type AppView = {
+  progress?: AppProgress
   app: ContainerApp
   runtime?: {
     state: string
@@ -31,6 +55,7 @@ export type AppView = {
     imageId: string
     health?: 'healthy' | 'unhealthy' | 'stopped'
     healthCheck?: 'tcp' | 'http'
+    disk?: { writable: DiskArea; persistent?: DiskArea; sampledAt: string }
     usage?: {
       cpuPercent?: number
       memoryBytes: number

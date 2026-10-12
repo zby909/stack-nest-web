@@ -7,11 +7,13 @@ export default function RouteLink({
   active,
   className,
   children,
+  onNavigate,
 }: {
   to: string
   active: boolean
   className: string
   children: ReactNode
+  onNavigate?: () => void
 }) {
   // handleClick 仅拦截未按修饰键的鼠标左键点击。
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -19,6 +21,7 @@ export default function RouteLink({
       return
     event.preventDefault()
     navigate(to)
+    onNavigate?.()
   }
 
   return (

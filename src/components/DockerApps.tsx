@@ -1,12 +1,19 @@
 import { useEffect, useState } from 'react'
 import { Alert, Button, Empty, Input, Modal, Spin, Tag, Tooltip } from 'antd'
-import { listApps, operateApp } from '../api/apps'
+import { getApp, listApps, operateApp } from '../api/apps'
 import { getErrorMessage } from '../lib/format'
 import type { AppAction, AppList, AppView } from '../types/app'
+import { isAdmin } from '../lib/permissions'
 import type { AuthUser } from '../types/auth'
+import { navigate } from '../lib/router'
+import RouteLink from './RouteLink'
+import DockerAppDisk from './DockerAppDisk'
+import DockerAppLogPanel from './DockerAppLogPanel'
 import DockerAppForm from './DockerAppForm'
 import DockerAppLogs from './DockerAppLogs'
 import DockerAppRuntime from './DockerAppRuntime'
+import DockerAppProgress from './DockerAppProgress'
+import DockerAppLimits from './DockerAppLimits'
 
 const phase = {
   pending: '等待执行',
@@ -23,7 +30,14 @@ const actionLabel: Record<AppAction, string> = {
 }
 
 // DockerApps 提供单容器 HTTP 应用管理；轮询只在可见页面执行。
-export default function DockerApps({ user }: { user: AuthUser }) {
+export default function DockerApps({
+  user,
+  detail,
+}: {
+  user: AuthUser
+  detail?: { id: string; tab: 'overview' | 'logs' } | null
+}) {
+  const detailId = detail?.id
   const [result, setResult] = useState<AppList | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -33,13 +47,17 @@ export default function DockerApps({ user }: { user: AuthUser }) {
   const [logs, setLogs] = useState<AppView | null>(null)
   const [deleting, setDeleting] = useState<AppView | null>(null)
   const [busyId, setBusyId] = useState('')
+  const [showLimits, setShowLimits] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
     // load 每次轮询完成后才启动下次，避免网络慢时堆积请求。
     const load = async () => {
       try {
-        const next = await listApps(controller.signal)
+        const item = detailId ? await getApp(detailId, controller.signal) : null
+        const next = item
+          ? { apps: [item], available: item.available, limits: item.limits }
+          : await listApps(controller.signal)
         if (!controller.signal.aborted) {
           setResult((current) => ({
             ...next,
@@ -51,7 +69,14 @@ export default function DockerApps({ user }: { user: AuthUser }) {
           setError('')
         }
       } catch (failure) {
-        if (!controller.signal.aborted) setError(getErrorMessage(failure, '应用列表加载失败'))
+        if (!controller.signal.aborted) {
+          setError(
+            getErrorMessage(
+              failure,
+              detailId ? '应用不存在、无权查看或暂时无法加载' : '应用列表加载失败',
+            ),
+          )
+        }
       } finally {
         if (!controller.signal.aborted) setLoading(false)
       }
@@ -67,7 +92,7 @@ export default function DockerApps({ user }: { user: AuthUser }) {
       controller.abort()
       clearTimeout(timer)
     }
-  }, [refresh])
+  }, [refresh, detailId])
 
   // act 立即展示新代次的排队状态，禁止反复提交同一操作。
   const act = async (target: AppView, action: AppAction) => {
@@ -83,7 +108,10 @@ export default function DockerApps({ user }: { user: AuthUser }) {
             }
           : current,
       )
-      if (action === 'delete') setDeleting(null)
+      if (action === 'delete') {
+        setDeleting(null)
+        if (detailId) navigate('/apps')
+      }
       setRefresh((value) => value + 1)
     } catch (failure) {
       setError(getErrorMessage(failure, `${actionLabel[action]}应用失败`))
@@ -107,46 +135,85 @@ export default function DockerApps({ user }: { user: AuthUser }) {
           title="Docker 运行器不可用，暂时不能操作应用。"
         />
       )}
-      <div className="mb-4 rounded-xl border border-line bg-panel p-4 text-sm leading-relaxed text-muted">
-        单个 HTTP 服务，最多 {result?.limits.maxApps ?? 3} 个应用，内存总额{' '}
-        {result?.limits.totalMemoryMiB ?? 768} MiB。
-        容器使用独立内网，当前不能主动访问互联网；浏览器通过应用域名访问。
-        {user.role === 'admin' && (
-          <span className="mt-1 block text-xs">
-            管理员可管理所有应用；普通用户仅管理自己的应用。
-          </span>
-        )}
-      </div>
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Input.Search
-          className="sm:max-w-xs"
-          placeholder="搜索应用…"
-          aria-label="搜索 Docker 应用"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          allowClear
-        />
-        <div className="flex gap-2">
-          <Button onClick={() => setRefresh((value) => value + 1)} loading={loading}>
-            刷新
-          </Button>
-          <Button
-            type="primary"
-            className="flex-1 sm:flex-none"
-            disabled={!result?.available}
-            onClick={() => setEditor({ target: null })}
-          >
-            ＋ 部署应用
-          </Button>
+      {detail && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <RouteLink to="/apps" active={false} className="text-sm underline">
+            ← 应用列表
+          </RouteLink>
+          <nav aria-label="应用详情标签" className="flex gap-4 text-sm">
+            <RouteLink
+              to={`/apps/${detail.id}`}
+              active={detail.tab === 'overview'}
+              className="rounded px-2 py-2 aria-[current=page]:bg-subtle"
+            >
+              概览与配置
+            </RouteLink>
+            <RouteLink
+              to={`/apps/${detail.id}/logs`}
+              active={detail.tab === 'logs'}
+              className="rounded px-2 py-2 aria-[current=page]:bg-subtle"
+            >
+              运行日志
+            </RouteLink>
+          </nav>
         </div>
-      </div>
+      )}
+      {!detail && (
+        <div className="mb-4 rounded-xl border border-line bg-panel p-4 text-sm leading-relaxed text-muted">
+          单个 HTTP 服务，最多 {result?.limits.maxApps ?? 3} 个应用，内存总额{' '}
+          {result?.limits.totalMemoryMiB ?? 768} MiB。
+          每个应用使用独立网络；联网权限由服务器部署配置决定，浏览器通过应用域名访问。
+          {isAdmin(user) && (
+            <span className="mt-1 block text-xs">
+              管理员可管理所有应用；普通用户仅管理自己的应用。
+            </span>
+          )}
+        </div>
+      )}
+      {!detail && (
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <Input.Search
+            className="sm:max-w-xs"
+            placeholder="搜索应用…"
+            aria-label="搜索 Docker 应用"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            allowClear
+          />
+          <div className="flex flex-wrap gap-2">
+            {user.role === 'superadmin' && (
+              <Button onClick={() => setShowLimits(true)}>资源配置</Button>
+            )}
+            <Button onClick={() => setRefresh((value) => value + 1)} loading={loading}>
+              刷新
+            </Button>
+            <Button
+              type="primary"
+              className="flex-1 sm:flex-none"
+              disabled={!result?.available}
+              onClick={() => setEditor({ target: null })}
+            >
+              ＋ 部署应用
+            </Button>
+          </div>
+        </div>
+      )}
       {loading && !result ? (
         <div className="grid min-h-48 place-items-center">
           <Spin />
         </div>
       ) : !views.length ? (
         <div className="rounded-xl border border-line bg-panel p-8">
-          <Empty description={query ? '没有匹配的应用' : '还没有 Docker 应用'} />
+          <Empty
+            description={
+              detail ? '应用无法加载或已删除' : query ? '没有匹配的应用' : '还没有 Docker 应用'
+            }
+          />
+        </div>
+      ) : detail?.tab === 'logs' ? (
+        <div className="min-w-0 rounded-xl border border-line bg-panel p-4 sm:p-5">
+          <h2 className="mb-4 text-base font-semibold break-all">{views[0].app.name} · 运行日志</h2>
+          <DockerAppLogPanel key={detail.id} id={detail.id} />
         </div>
       ) : (
         <div className="grid gap-4">
@@ -163,11 +230,23 @@ export default function DockerApps({ user }: { user: AuthUser }) {
               >
                 <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h2 className="mb-1 text-base font-semibold">{app.name}</h2>
+                    <h2 className="mb-1 text-base font-semibold break-all">
+                      {detail ? (
+                        app.name
+                      ) : (
+                        <RouteLink
+                          to={`/apps/${app.id}`}
+                          active={false}
+                          className="hover:underline"
+                        >
+                          {app.name}
+                        </RouteLink>
+                      )}
+                    </h2>
                     <p className="text-xs break-all text-dim">
                       {app.slug} · {app.image}
                     </p>
-                    {user.role === 'admin' && (
+                    {isAdmin(user) && (
                       <p className="mt-1 text-xs break-all text-dim">所属：{app.ownerEmail}</p>
                     )}
                   </div>
@@ -200,7 +279,35 @@ export default function DockerApps({ user }: { user: AuthUser }) {
                     <span>环境变量 {app.envKeys.length} 个 ⓘ</span>
                   </Tooltip>
                 </div>
+                <DockerAppProgress view={view} />
                 <DockerAppRuntime view={view} />
+                <DockerAppDisk view={view} />
+                {detail && (
+                  <dl className="mb-4 grid gap-2 rounded-lg bg-subtle p-3 text-xs sm:grid-cols-2">
+                    <div>
+                      <dt className="text-muted">健康检查</dt>
+                      <dd className="mt-1 break-all">{app.healthPath || 'TCP 端口检查'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted">环境变量名称（不显示值）</dt>
+                      <dd className="mt-1 break-all">{app.envKeys.join('、') || '无'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted">配置版本</dt>
+                      <dd className="mt-1">{app.generation}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted">最近更新</dt>
+                      <dd className="mt-1">{new Date(app.updatedAt).toLocaleString('zh-CN')}</dd>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <dt className="text-muted">镜像标识</dt>
+                      <dd className="mt-1 break-all">
+                        {runtime?.imageId || app.imageId || '等待部署'}
+                      </dd>
+                    </div>
+                  </dl>
+                )}
                 {app.error && <Alert className="mb-3" type="error" showIcon title={app.error} />}
                 {runtime?.oomKilled && (
                   <Alert
@@ -243,9 +350,16 @@ export default function DockerApps({ user }: { user: AuthUser }) {
           })}
         </div>
       )}
+      {showLimits && (
+        <DockerAppLimits
+          onClose={() => setShowLimits(false)}
+          onSaved={() => setRefresh((value) => value + 1)}
+        />
+      )}
       {editor && (
         <DockerAppForm
           target={editor.target}
+          maxMemoryMiB={result?.limits.maxMemoryMiB ?? 512}
           onClose={() => setEditor(null)}
           onSaved={() => setRefresh((value) => value + 1)}
         />

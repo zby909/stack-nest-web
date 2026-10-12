@@ -1,11 +1,15 @@
+import UserRoleModal from './UserRoleModal'
+import { roleLabel } from '../lib/permissions'
 import { useEffect, useState } from 'react'
 import axios from 'axios'
-import { Alert, Button, Checkbox, Form, Input, Modal, Spin } from 'antd'
+import { Alert, Button, Checkbox, Form, Input, Modal, Select, Spin } from 'antd'
 import { addUser, deleteUser, listUsers } from '../api/users'
 import type { AuthUser } from '../types/auth'
 
 // UserManagement 允许管理员维护可登录邮箱列表。
-function UserManagement() {
+function UserManagement({ user }: { user: AuthUser }) {
+  const [roleTarget, setRoleTarget] = useState<AuthUser | null>(null)
+  const [addRole, setAddRole] = useState<'user' | 'admin'>('user')
   const [form] = Form.useForm<{ email: string }>()
   const [users, setUsers] = useState<AuthUser[]>([])
   const [addTarget, setAddTarget] = useState<string | null>(null)
@@ -42,6 +46,7 @@ function UserManagement() {
   const openAddConfirmation = ({ email }: { email: string }) => {
     if (saving || loading) return
     setAddTarget(email.trim())
+    setAddRole('user')
     setAddError('')
     setSendInvitation(false)
     setError('')
@@ -63,23 +68,23 @@ function UserManagement() {
     setAddError('')
     setNotice(null)
     try {
-      const user = await addUser(addTarget, sendInvitation)
-      setUsers((current) => [...current, user])
+      const added = await addUser(addTarget, sendInvitation, addRole)
+      setUsers((current) => [...current, added])
       form.resetFields()
       setAddTarget(null)
       setSendInvitation(false)
-      if (user.invitation === 'failed') {
+      if (added.invitation === 'failed') {
         setNotice({
           type: 'warning',
-          text: `${user.email} 已添加，但邀请邮件未能确认发送。请手动告知对方登录地址，无需重复添加邮箱。`,
+          text: `${added.email} 已添加，但邀请邮件未能确认发送。请手动告知对方登录地址，无需重复添加邮箱。`,
         })
       } else {
         setNotice({
           type: 'success',
           text:
-            user.invitation === 'sent'
-              ? `${user.email} 已添加，邀请邮件已发送。若对方未收到，请检查垃圾邮件。`
-              : `${user.email} 已添加，请告知对方登录地址。`,
+            added.invitation === 'sent'
+              ? `${added.email} 已添加，邀请邮件已发送。若对方未收到，请检查垃圾邮件。`
+              : `${added.email} 已添加，请告知对方登录地址。`,
         })
       }
     } catch (requestError) {
@@ -171,7 +176,7 @@ function UserManagement() {
             size="large"
             type="email"
             autoComplete="off"
-            placeholder="添加普通用户邮箱"
+            placeholder={user.role === 'superadmin' ? '添加用户或管理员邮箱' : '添加普通用户邮箱'}
           />
         </Form.Item>
         <Button
@@ -189,30 +194,57 @@ function UserManagement() {
         </div>
       ) : (
         <div className="mt-5 divide-y divide-line overflow-hidden rounded-xl border border-line">
-          {users.map((user) => (
-            <div className="flex items-center justify-between gap-3 p-3.5" key={user.id}>
+          {users.map((member) => (
+            <div className="flex items-center justify-between gap-3 p-3.5" key={member.id}>
               <div className="min-w-0 flex-1">
-                <strong className="block text-sm break-all" title={user.email}>
-                  {user.email}
+                <strong className="block text-sm break-all" title={member.email}>
+                  {member.email}
                 </strong>
                 <span className="mt-1 block text-xs text-dim">
-                  {user.role === 'admin' ? '管理员' : '普通用户'} ·{' '}
-                  {new Date(user.createdAt).toLocaleDateString('zh-CN')} 加入
+                  {roleLabel(member)} · {new Date(member.createdAt).toLocaleDateString('zh-CN')}{' '}
+                  加入
                 </span>
               </div>
-              {user.role === 'user' && (
-                <Button
-                  danger
-                  className="h-11 shrink-0 sm:h-8"
-                  disabled={saving}
-                  onClick={() => setDeleteTarget(user)}
-                >
-                  移除
-                </Button>
-              )}
+              <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                {user.role === 'superadmin' &&
+                  member.role !== 'superadmin' &&
+                  member.id !== user.id && (
+                    <Button
+                      className="h-11 sm:h-8"
+                      disabled={saving}
+                      onClick={() => setRoleTarget(member)}
+                    >
+                      {member.role === 'user' ? '设为管理员' : '撤销管理员'}
+                    </Button>
+                  )}
+                {member.role === 'user' && (
+                  <Button
+                    danger
+                    className="h-11 shrink-0 sm:h-8"
+                    disabled={saving}
+                    onClick={() => setDeleteTarget(member)}
+                  >
+                    移除
+                  </Button>
+                )}
+              </div>
             </div>
           ))}
         </div>
+      )}
+      {roleTarget && (
+        <UserRoleModal
+          target={roleTarget}
+          onClose={() => setRoleTarget(null)}
+          onSaved={(updated) => {
+            setUsers((current) => current.map((item) => (item.id === updated.id ? updated : item)))
+            setRoleTarget(null)
+            setNotice({
+              type: 'success',
+              text: `${updated.email} 的角色已调整，原登录会话已撤销。`,
+            })
+          }}
+        />
       )}
       <Modal
         open={addTarget !== null}
@@ -232,9 +264,30 @@ function UserManagement() {
         <div className="my-4 rounded-xl bg-subtle p-4">
           <strong className="block text-base break-all">{addTarget}</strong>
           <p className="mt-2 text-sm leading-relaxed text-muted">
-            添加为普通用户，可以通过邮箱验证码登录并管理自己的项目。
+            {addRole === 'admin'
+              ? '添加为管理员，可管理所有项目、普通用户邮箱并查看服务器信息；实例资源和网络配置仍仅超管可修改。'
+              : '添加为普通用户，可以通过邮箱验证码登录并管理自己的项目。'}
           </p>
         </div>
+        {user.role === 'superadmin' && (
+          <div className="mb-3">
+            <label className="mb-2 block text-sm" htmlFor="new-user-role">
+              新增邮箱角色
+            </label>
+            <Select
+              id="new-user-role"
+              aria-label="新增邮箱角色"
+              className="w-full"
+              value={addRole}
+              disabled={saving}
+              onChange={setAddRole}
+              options={[
+                { value: 'user', label: '普通用户' },
+                { value: 'admin', label: '管理员' },
+              ]}
+            />
+          </div>
+        )}
         <Checkbox
           className="min-h-11 items-center text-sm"
           checked={sendInvitation}

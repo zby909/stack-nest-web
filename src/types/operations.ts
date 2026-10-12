@@ -43,6 +43,10 @@ export type ActivityEvent = {
     | 'app-stop'
     | 'app-restart'
     | 'app-delete'
+    | 'network'
+    | 'app-limits'
+    | 'user-add'
+    | 'user-role'
   actor: string
   slug?: string
   fileName?: string

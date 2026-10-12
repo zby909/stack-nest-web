@@ -1,22 +1,22 @@
 # StackNest Web 构建与部署
 
-本文负责管理端的构建、配置和更新。首次部署整个 StackNest，请按 [后端与联合部署文档](https://github.com/zby909/stack-nest-server/blob/main/docs/DEPLOYMENT.md) 操作；数据库、域名、HTTPS、数据卷和备份只在该文档维护。
+本文只负责管理端构建、运行配置和更新；整个平台的 Docker 部署从 [文档导航](https://github.com/zby909/stack-nest-server/blob/main/docs/README.md)进入。普通服务器用 [首次部署](https://github.com/zby909/stack-nest-server/blob/main/docs/GETTING_STARTED.md)，家用电脑用 [Tunnel 教程](https://github.com/zby909/stack-nest-server/blob/main/docs/HOME_SERVER_TUNNEL.md)，备份与升级用 [日常运维](https://github.com/zby909/stack-nest-server/blob/main/docs/OPERATIONS.md)。前端打包进唯一的 Nginx，宿主无需 Node 服务。
 
-可选邀请邮件需要 API 0.4.2 或更新版本。邮箱列表接口返回固定邀请地址，未配置时页面禁用发送邀请；添加接口支持 `sendInvitation`（默认 false），并返回独立发送结果。应与后端一起发布此功能，SMTP 和登录地址配置只留在后端。
+前后端使用配套发布版本。契约由 server/openapi 的主文件及应用预算、角色、网络补充文件维护；新功能不靠前端隐藏按钮授予权限，后端仍执行所有校验。SMTP 和邀请登录地址只配置在后端。
 
 所有前端命令均在 `web/` 目录执行；下文标明的 Compose 命令在同级 `server/` 执行。
 
-当前管理功能需要配套 API 0.9.0：项目详情、草稿预览与确认发布、更新说明、文件变化、保留版本统计与占用排序、站点暂停/恢复、服务端日志组合查询和分页，以及已有的编辑、ZIP 导出和管理员备份摘要。前后端须一起发布，无新增前端环境变量。登录、管理页面和低频弹窗使用独立模块，必须完整部署同一次构建的 `dist`；旧页面遇到失效模块时会提示手动刷新。
+当前包括项目详情、草稿预览与发布、版本文件、操作日志、邮箱及角色、Docker 应用与资源预算、服务器状态和可选网络配置。完整更新同次构建的 dist；模块加载失败时页面提供刷新提示。
 
 发布前运行 `pnpm check`，完成类型、Lint、生产构建及浏览器回归。首次需要安装测试浏览器，具体步骤见 [自动化回归](TESTING.md)。浏览器使用模拟接口，部署后仍需检查真实登录、项目 API 与站点访问。
 
 ## 1. 先区分三个运行方式
 
-| 场景             | 入口                                    | 后端与静态项目                                                           |
-| ---------------- | --------------------------------------- | ------------------------------------------------------------------------ |
-| 日常开发         | `pnpm dev`，访问终端显示的 Vite 地址    | 先启动 Go API；Vite 将 `/api` 和 `/sites` 代理到 `http://localhost:8080` |
-| 本地检查构建结果 | `pnpm build` 后运行 `pnpm preview`      | API 仍需单独启动；仅用于检查构建产物                                     |
-| 生产部署         | `server/compose.yaml` 中的 `nginx` 服务 | Nginx 提供管理页面、反代 API，并通过项目子域名提供静态文件               |
+| 场景             | 入口                                 | 后端与静态项目                                                           |
+| ---------------- | ------------------------------------ | ------------------------------------------------------------------------ |
+| 日常开发         | `pnpm dev`，访问终端显示的 Vite 地址 | 先启动 Go API；Vite 将 `/api` 和 `/sites` 代理到 `http://localhost:8080` |
+| 本地检查构建结果 | `pnpm build` 后运行 `pnpm preview`   | API 仍需单独启动；仅用于检查构建产物                                     |
+| 生产部署         | Docker Compose 的 `nginx` 服务       | Nginx 提供管理页面、反代 API，并通过项目子域名提供静态文件               |
 
 `pnpm dev` 和 `pnpm preview` 都不是生产入口。[Vite 官方部署说明](https://vite.dev/guide/static-deploy.html) 将 preview 定位为本地构建检查工具。
 
@@ -70,7 +70,7 @@ workspace/
 
 `nginx` 镜像由 `web/Dockerfile` 构建。运行时由 server 仓库提供：
 
-- `deploy/nginx/default.conf.template`：HTTP 管理域名、API 代理、项目泛域名和 SPA fallback；Cloudflare Full (strict) 时改用 `cloudflare.conf.template`。
+- `deploy/nginx/tls.conf.template`：默认普通公网 HTTPS 和 HTTP/2；HTTP / 外部代理、SSH、Cloudflare 普通代理与 Tunnel 按服务端 Compose 入口选择对应模板。所有方式都复用一个 `nginx` 服务。
 - `STACKNEST_ADMIN_DOMAIN`、`STACKNEST_BASE_DOMAIN`：Nginx 模板变量。
 - `stacknest-data` 数据卷：以只读方式挂载到 `/data`，提供已发布项目。
 
@@ -88,7 +88,7 @@ docker compose ps nginx
 
 项目页的未完成上传恢复入口复用 API 0.9.0，无新增迁移或环境变量，可单独更新前端。升级前仅保存任务编号的旧记录仍可按相同信息和原文件手动续传，不能自动补回此前未保存的表单。
 
-项目版本流程需与 API 0.9.0、`release_notes` 迁移和两份 Nginx 模板一起发布。上传先生成草稿与独立预览地址，确认发布才替换正式版；网址与归属不变。保留当前和上一正式版，另允许一个草稿；已有草稿需先发布或丢弃才能继续上传或回退。界面携带正式版和草稿编号，409 表示页面已过期，需要刷新再操作。删除项目会同时删除全部保留文件；完整规则见 [项目需求](https://github.com/zby909/stack-nest-server/blob/main/docs/REQUIREMENTS.md)。
+项目版本流程需与 API 0.9.0、`release_notes` 迁移和所选入口的 Nginx 模板一起发布。上传先生成草稿与独立预览地址，确认发布才替换正式版；网址与归属不变。保留当前和上一正式版，另允许一个草稿；已有草稿需先发布或丢弃才能继续上传或回退。界面携带正式版和草稿编号，409 表示页面已过期，需要刷新再操作。删除项目会同时删除全部保留文件；完整规则见 [项目需求](https://github.com/zby909/stack-nest-server/blob/main/docs/REQUIREMENTS.md)。
 
 ## 5. 常见问题
 
@@ -108,3 +108,9 @@ docker compose ps nginx
 功能与上线标准统一见 [需求文档](https://github.com/zby909/stack-nest-server/blob/main/docs/REQUIREMENTS.md)。
 
 Docker 应用页面位于 /apps，需配合 API 0.10.0、独立运行器和更新后的 Nginx 配置部署。普通用户仅管理自己的应用，详情见后端 docs/DOCKER_APPS.md。
+
+## 应用详情与角色调整
+
+Docker 应用详情为 `/apps/<id>`，运行日志为 `/apps/<id>/logs`；反向代理继续将管理主机的未知页面路径回退到 `index.html`。API 不应回退为 HTML。升级时同步更新 API、Runner 与前端，以获取磁盘计量和详情页能力字段。
+
+超管可以确认提升或撤销现有用户的管理员身份；接口同时撤销该用户会话。浏览器隐藏操作按钮仅改善体验，权限以服务端校验为准。接口补充契约位于 Server 的 `openapi/user-roles.yaml`。部署自检使用 API 镜像的 `stacknest doctor` 子命令，完整说明见 Server 的 `docs/GETTING_STARTED.md`。

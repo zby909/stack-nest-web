@@ -1,15 +1,17 @@
 import { Button } from 'antd'
 import RouteLink from './RouteLink'
 import ThemeSwitcher from './ThemeSwitcher'
+import { canOpenPage, roleLabel } from '../lib/permissions'
 import type { AuthUser } from '../types/auth'
 import type { Page } from '../lib/router'
 
-const pages: { page: Page; label: string; mobileLabel: string; adminOnly?: boolean }[] = [
+const pages: { page: Page; label: string; mobileLabel: string }[] = [
   { page: 'projects', label: '项目', mobileLabel: '项目' },
   { page: 'apps', label: 'Docker 应用', mobileLabel: '应用' },
   { page: 'activity', label: '操作日志', mobileLabel: '日志' },
-  { page: 'users', label: '用户邮箱', mobileLabel: '邮箱', adminOnly: true },
-  { page: 'system', label: '服务器状态', mobileLabel: '状态', adminOnly: true },
+  { page: 'users', label: '用户邮箱', mobileLabel: '邮箱' },
+  { page: 'system', label: '服务器状态', mobileLabel: '状态' },
+  { page: 'network', label: '网络设置', mobileLabel: '网络' },
 ]
 
 // AppNavigation 在桌面使用侧栏，在手机和平板使用顶部导航，统一权限和路由入口。
@@ -24,7 +26,7 @@ export default function AppNavigation({
   onRequestLogout: () => void
   loggingOut: boolean
 }) {
-  const visiblePages = pages.filter((item) => !item.adminOnly || user.role === 'admin')
+  const visiblePages = pages.filter((item) => canOpenPage(user, item.page))
 
   return (
     <>
@@ -54,7 +56,7 @@ export default function AppNavigation({
           <strong className="block truncate text-xs" title={user.email}>
             {user.email}
           </strong>
-          <p className="mt-1 text-xs text-dim">{user.role === 'admin' ? '管理员' : '普通用户'}</p>
+          <p className="mt-1 text-xs text-dim">{roleLabel(user)}</p>
           <div className="mt-3 flex items-center justify-between gap-2">
             <Button className="min-h-11" onClick={onRequestLogout} loading={loggingOut}>
               退出登录
@@ -90,7 +92,7 @@ export default function AppNavigation({
           </div>
         </div>
         <nav
-          className="grid auto-cols-fr grid-flow-col gap-1 rounded-xl bg-nav-active p-1"
+          className="grid grid-cols-3 gap-1 rounded-xl bg-nav-active p-1 sm:auto-cols-fr sm:grid-flow-col sm:grid-cols-none"
           aria-label="页面导航"
         >
           {visiblePages.map((item) => (

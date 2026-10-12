@@ -12,10 +12,11 @@ import ProjectActions from './components/ProjectActions'
 import ProjectUsage from './components/ProjectUsage'
 import { sortProjects, type ProjectSort } from './lib/projectUsage'
 import LazyPanel from './components/LazyPanel'
+import { isAdmin } from './lib/permissions'
 import { validateProjectDescription, validateProjectName } from './lib/projectMetadata'
 import { getStorage } from './api/operations'
 import { formatBytes, getErrorMessage } from './lib/format'
-import { navigate, projectRoute, usePathname, type Page } from './lib/router'
+import { navigate, appRoute, projectRoute, usePathname, type Page } from './lib/router'
 import RouteLink from './components/RouteLink'
 import type { StorageStatus } from './types/operations'
 import type { AuthUser } from './types/auth'
@@ -25,6 +26,7 @@ const DockerApps = lazy(() => import('./components/DockerApps'))
 const ProjectDetail = lazy(() => import('./components/ProjectDetail'))
 const ActivityLog = lazy(() => import('./components/ActivityLog'))
 const SystemOverview = lazy(() => import('./components/SystemOverview'))
+const NetworkSettings = lazy(() => import('./components/NetworkSettings'))
 const UserManagement = lazy(() => import('./components/UserManagement'))
 const ProjectReleaseModal = lazy(() => import('./components/ProjectReleaseModal'))
 const ProjectEditModal = lazy(() => import('./components/ProjectEditModal'))
@@ -85,6 +87,7 @@ function App({
       activity: '操作日志',
       users: '用户邮箱',
       system: '服务器状态',
+      network: '网络设置',
     }
     document.title = `${titles[page]} · StackNest`
   }, [page])
@@ -134,11 +137,11 @@ function App({
         item.name,
         item.slug,
         item.description ?? '',
-        ...(user.role === 'admin' ? [item.ownerEmail] : []),
+        ...(isAdmin(user) ? [item.ownerEmail] : []),
       ].some((value) => value.toLowerCase().includes(keyword)),
     )
     return sortProjects(matched, sort)
-  }, [projects, query, sort, user.role])
+  }, [projects, query, sort, user])
 
   const restoreCreate = upload.restore
   useEffect(() => {
@@ -259,7 +262,9 @@ function App({
                         ? '管理登录邮箱'
                         : page === 'activity'
                           ? '每次操作，都有记录。'
-                          : '服务器运行状态'}
+                          : page === 'network'
+                            ? '配置容器网络访问'
+                            : '服务器运行状态'}
                 </h1>
                 <p className="text-sm leading-relaxed text-muted desktop:text-xs">
                   {page === 'projects'
@@ -270,7 +275,9 @@ function App({
                         ? '只有名单中的邮箱可以接收登录验证码。'
                         : page === 'activity'
                           ? '查看发布结果、失败原因和存储用量。'
-                          : '查看 CPU、内存和数据卷空间，数据每 30 秒更新。'}
+                          : page === 'network'
+                            ? '管理局域网保护与允许例外，仅超级管理员可修改。'
+                            : '查看 CPU、内存和数据卷空间，数据每 30 秒更新。'}
                 </p>
               </div>
               {page === 'projects' && (
@@ -322,15 +329,23 @@ function App({
             </LazyPanel>
           ) : page === 'apps' ? (
             <LazyPanel key={page}>
-              <DockerApps user={user} />
+              <DockerApps
+                key={appRoute(pathname)?.id ?? 'list'}
+                user={user}
+                detail={appRoute(pathname)}
+              />
             </LazyPanel>
           ) : page === 'users' ? (
             <LazyPanel key={page}>
-              <UserManagement />
+              <UserManagement user={user} />
             </LazyPanel>
           ) : page === 'activity' ? (
             <LazyPanel key={page}>
               <ActivityLog />
+            </LazyPanel>
+          ) : page === 'network' ? (
+            <LazyPanel key={page}>
+              <NetworkSettings />
             </LazyPanel>
           ) : page === 'system' ? (
             <LazyPanel key={page}>
@@ -367,7 +382,7 @@ function App({
                 />
               </section>
 
-              {user.role === 'admin' ? (
+              {isAdmin(user) ? (
                 <StorageCard
                   status={storageStatus}
                   error={storageError}
@@ -406,7 +421,7 @@ function App({
                   <div>
                     <h2 className="text-base font-bold">项目</h2>
                     <p className="mt-1 text-sm text-muted sm:text-xs">
-                      {user.role === 'admin'
+                      {isAdmin(user)
                         ? '查看和管理所有用户的项目。'
                         : '搜索、打开或删除自己的项目。'}
                     </p>
@@ -496,7 +511,7 @@ function App({
                                 {project.slug}
                                 {project.description ? ` · ${project.description}` : ''}
                               </div>
-                              {user.role === 'admin' && (
+                              {isAdmin(user) && (
                                 <div
                                   className="mt-1 text-xs break-all text-muted xl:truncate"
                                   title={project.ownerEmail}

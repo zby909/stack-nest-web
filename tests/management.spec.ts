@@ -181,3 +181,81 @@ for (const mode of ['禁止访问', '禁止写入'] as const) {
     expect(pageErrors).toEqual([])
   })
 }
+
+// 超管添加管理员需明确选择角色，每次确认仍默认普通用户且不发送邀请。
+test('超管添加管理员且下次恢复默认角色', async ({ page, api }) => {
+  api.role = 'superadmin'
+  await page.goto('/users')
+  const email = page.getByRole('textbox', { name: '新用户邮箱' })
+  await email.fill('new-admin@example.com')
+  await page.getByRole('button', { name: '添加邮箱', exact: true }).click()
+  let dialog = page.getByRole('dialog')
+  await expect(dialog.getByRole('checkbox', { name: '发送邀请邮件' })).not.toBeChecked()
+  await selectOption(page, '新增邮箱角色', '管理员')
+  await expect(dialog.getByText(/可管理所有项目、普通用户邮箱并查看服务器信息/)).toBeVisible()
+  await dialog.getByRole('button', { name: '确认添加', exact: true }).click()
+  await expect(dialog).not.toBeVisible()
+  expect(api.requests.findLast((request) => request.method === 'POST')?.body).toEqual({
+    email: 'new-admin@example.com',
+    sendInvitation: false,
+    role: 'admin',
+  })
+  const row = page.getByTitle('new-admin@example.com', { exact: true }).locator('..')
+  await expect(row.getByText(/管理员 ·/)).toBeVisible()
+  await expect(row.locator('..').getByRole('button', { name: /^移\s*除$/ })).toHaveCount(0)
+  await email.fill('next-user@example.com')
+  await page.getByRole('button', { name: '添加邮箱', exact: true }).click()
+  dialog = page.getByRole('dialog')
+  await expect(dialog.getByText(/添加为普通用户/)).toBeVisible()
+  await expect(dialog.getByRole('checkbox', { name: '发送邀请邮件' })).not.toBeChecked()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  )
+  await page.screenshot({
+    path: `test-results/admin-add-${test.info().project.name}.png`,
+    fullPage: true,
+    animations: 'disabled',
+  })
+})
+
+// 普通管理员没有授予管理员的控件。
+test('管理员只能添加普通用户', async ({ page, api }) => {
+  api.role = 'admin'
+  await page.goto('/users')
+  await page.getByRole('textbox', { name: '新用户邮箱' }).fill('normal-user@example.com')
+  await page.getByRole('button', { name: '添加邮箱', exact: true }).click()
+  await expect(
+    page.getByRole('dialog').getByRole('combobox', { name: '新增邮箱角色' }),
+  ).toHaveCount(0)
+})
+
+// 超管升降现有角色必须确认，取消不写入；普通管理员没有该入口。
+test('超管调整已有用户角色', async ({ page, api }) => {
+  api.role = 'superadmin'
+  api.users.push({
+    id: 'test-member',
+    email: 'member@example.com',
+    role: 'user',
+    createdAt: '2026-10-11T00:00:00Z',
+  })
+  await page.goto('/users')
+  await page.getByRole('button', { name: '设为管理员', exact: true }).click()
+  let dialog = page.getByRole('dialog')
+  await expect(dialog.getByText(/原有登录会话和验证码会失效/)).toBeVisible()
+  await dialog.getByRole('button', { name: /^取\s*消$/ }).click()
+  expect(api.requests.filter((r) => r.path.endsWith('/role'))).toHaveLength(0)
+  await page.getByRole('button', { name: '设为管理员', exact: true }).click()
+  dialog = page.getByRole('dialog')
+  await dialog.getByRole('button', { name: '确认调整角色' }).click()
+  await expect(dialog).not.toBeVisible()
+  expect(api.requests.findLast((r) => r.path.endsWith('/role'))?.body).toEqual({
+    role: 'admin',
+    expectedRole: 'user',
+  })
+  await page.getByRole('button', { name: '撤销管理员', exact: true }).click()
+  await page.getByRole('dialog').getByRole('button', { name: '确认调整角色' }).click()
+  await expect(page.getByRole('button', { name: '设为管理员', exact: true })).toBeVisible()
+  api.role = 'admin'
+  await page.reload()
+  await expect(page.getByRole('button', { name: '设为管理员', exact: true })).toHaveCount(0)
+})

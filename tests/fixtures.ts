@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { test as base, expect } from '@playwright/test'
+import type { NetworkView } from '../src/types/network.ts'
 import type { AuthUser } from '../src/types/auth.ts'
 import type { Project } from '../src/types/project.ts'
 import { admin, date, original, successfulBackup } from './data.ts'
@@ -14,7 +15,9 @@ type RecordedRequest = {
   offset?: string
 }
 type MockAPI = {
-  role: 'admin' | 'user' | 'guest'
+  role: 'superadmin' | 'admin' | 'user' | 'guest'
+  network: NetworkView
+  networkConflict: boolean
   projects: Project[]
   users: AuthUser[]
   requests: RecordedRequest[]
@@ -38,6 +41,26 @@ export const test = base.extend<{ api: MockAPI }>({
       const zip = await readFile(archivePath)
       const state: MockAPI = {
         role: 'admin',
+        networkConflict: false,
+        network: {
+          config: {
+            lanInterfaces: ['eth0'],
+            blockedCIDRs: ['192.168.2.0/24'],
+            allow: [],
+            dnsServers: ['1.1.1.1', '223.5.5.5'],
+          },
+          revision: 'revision-1',
+          ready: true,
+          checkedAt: date,
+          effectiveBlockedCIDRs: ['172.21.32.0/20', '192.168.2.0/24', 'fe80::/64'],
+          interfaces: [
+            {
+              name: 'eth0',
+              addresses: ['172.21.47.248/20', 'fe80::215:5dff:fefc:8400/64'],
+              eligible: true,
+            },
+          ],
+        },
         projects: [structuredClone(original)],
         users: [structuredClone(admin)],
         requests: [],
@@ -89,6 +112,26 @@ export const test = base.extend<{ api: MockAPI }>({
             headers: { 'X-Request-ID': 'regression-request' },
             body: JSON.stringify(data),
           })
+        if (path === '/api/network') {
+          if (state.role !== 'superadmin')
+            return reply({ error: '仅超级管理员可配置容器网络' }, 403)
+          if (method === 'GET') return reply(state.network)
+          if (method === 'PUT') {
+            if (state.networkConflict || body.expectedRevision !== state.network.revision)
+              return reply({ error: '配置已被更新，请刷新后重试' }, 409)
+            const dnsChanged =
+              JSON.stringify(body.config.dnsServers) !==
+              JSON.stringify(state.network.config.dnsServers)
+            state.network = {
+              ...state.network,
+              config: body.config,
+              revision: 'revision-2',
+              effectiveBlockedCIDRs: ['172.21.32.0/20', ...body.config.blockedCIDRs, 'fe80::/64'],
+              dnsChanged,
+            }
+            return reply(state.network)
+          }
+        }
         if (path === '/api/auth/session' && method === 'GET') {
           return state.role === 'guest'
             ? reply({ error: '请先登录' }, 401)
@@ -100,7 +143,7 @@ export const test = base.extend<{ api: MockAPI }>({
         }
         if (path === '/api/storage' && method === 'GET') {
           return reply({
-            ...(state.role === 'admin'
+            ...(state.role === 'admin' || state.role === 'superadmin'
               ? {
                   totalBytes: 40 * 1024 ** 3,
                   freeBytes: 25 * 1024 ** 3,
@@ -214,10 +257,19 @@ export const test = base.extend<{ api: MockAPI }>({
             return reply(project)
           }
         }
+        if (path.startsWith('/api/users/') && path.endsWith('/role') && method === 'PUT') {
+          const input = request.postDataJSON() as { role: 'admin' | 'user'; expectedRole: string }
+          const target = state.users.find((u) => path === `/api/users/${u.id}/role`)
+          if (state.role !== 'superadmin') return reply({ error: '禁止修改角色' }, 403)
+          if (!target) return reply({ error: '用户不存在' }, 404)
+          if (target.role !== input.expectedRole) return reply({ error: '角色已变化，请刷新' }, 409)
+          target.role = input.role
+          return reply(target)
+        }
         if (path === '/api/users' && method === 'POST') {
           const user: AuthUser = {
             id: `user-${state.users.length}`,
-            role: 'user',
+            role: body.role === 'admin' && state.role === 'superadmin' ? 'admin' : 'user',
             email: body.email,
             createdAt: date,
           }

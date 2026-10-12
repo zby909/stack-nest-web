@@ -1,8 +1,10 @@
 # StackNest Web
 
+StackNest 面向个人开发者和中小型公司的自托管私有项目管理，由管理员邀请可信成员使用。功能设计优先考虑易部署、易维护、易迁移；后续取舍以 [产品定位与原则](https://github.com/zby909/stack-nest-server/blob/main/docs/REQUIREMENTS.md#1-目标) 为依据。
+
 StackNest 管理端基于 Vite 官方 `react-ts` 模板创建，与 Go API 分别开发。当前支持邮件验证码登录、项目上传与管理、操作日志，以及管理员维护普通用户邮箱和查看服务器状态；接口契约由 server 仓库的 `openapi/openapi.yaml` 维护。纯 HTML 视觉探索稿保留在 `stacknest-html-design-neutral/`，不参与构建，也不作为验收依据。
 
-普通用户只看到自己的项目和相关日志；管理员可以管理全部项目、查看项目所属邮箱及服务器状态。已发布的站点链接仍是公开的。
+普通用户只看到自己的项目和相关日志；管理员可以管理全部项目、查看项目所属邮箱及服务器状态。超管另可配置容器网络及实例资源预算，并在新增邮箱的确认弹窗中选择管理员角色。已发布的站点链接仍是公开的。
 
 项目常用操作为打开与更新；“更多”中可编辑信息、导出 ZIP、暂停/恢复访问、回退及删除。暂停保留文件和版本，更新不会解除暂停。日志在服务端按项目、类型、结果、邮箱、日期与关键词查询并分页。需要配套 API 0.10.0，所有项目操作沿用归属限制。
 
@@ -12,9 +14,9 @@ StackNest 管理端基于 Vite 官方 `react-ts` 模板创建，与 Go API 分�
 
 登录、管理页和低频弹窗按需加载；模块下载失败提示手动刷新。发布时完整更新同一次构建的 `dist`。
 
-管理员输入邮箱并点击“添加邮箱”后，在确认弹窗中选择是否发送邀请邮件，默认不勾选；取消时保留输入且不添加用户、不发邮件。邀请使用后端配置的固定 HTTPS 登录地址。页面分别反馈添加和发信结果，发信失败时用户仍已添加。
+管理员输入邮箱并点击“添加邮箱”后，在确认弹窗中选择是否发送邀请邮件，默认不勾选；超管还可选择普通用户或管理员角色，每次打开默认普通用户；取消时保留输入且不添加用户、不发邮件。邀请使用后端配置的固定 HTTPS 登录地址。页面分别反馈添加和发信结果，发信失败时用户仍已添加。
 
-文档入口：[需求与验收](https://github.com/zby909/stack-nest-server/blob/main/docs/REQUIREMENTS.md) · [Web 构建与部署](docs/DEPLOYMENT.md) · [后端与联合部署](https://github.com/zby909/stack-nest-server/blob/main/docs/DEPLOYMENT.md)。
+文档入口：[完整文档导航](https://github.com/zby909/stack-nest-server/blob/main/docs/README.md) · [Docker Compose 首次部署](https://github.com/zby909/stack-nest-server/blob/main/docs/GETTING_STARTED.md) · [家用电脑 Cloudflare Tunnel](https://github.com/zby909/stack-nest-server/blob/main/docs/HOME_SERVER_TUNNEL.md) · [需求与验收](https://github.com/zby909/stack-nest-server/blob/main/docs/REQUIREMENTS.md) · [Web 构建与部署](docs/DEPLOYMENT.md) · [后端与联合部署](https://github.com/zby909/stack-nest-server/blob/main/docs/DEPLOYMENT.md)。
 
 ## 技术栈
 
@@ -101,3 +103,5 @@ pnpm format
 ```
 
 Docker 应用页位于 /apps，支持仓库镜像地址部署、启停、更新、日志及永久删除。普通用户管理自己的应用，管理员管理全部；配置值不回显，应用数据目录在更新与重启后保留。范围和限制见后端 docs/DOCKER_APPS.md。
+
+超级管理员可在 `/network` 配置 Docker 应用的局域网保护、单 IP/端口例外和公共 DNS。身份由部署配置指定；普通管理员和用户没有此入口。后端未安装 Go 网络服务时会显示不可用，安装说明见后端 `docs/NETWORK_EGRESS.md`。
