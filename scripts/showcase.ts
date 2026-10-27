@@ -3,6 +3,75 @@ import { fileURLToPath } from 'node:url'
 import { test, expect } from '../tests/fixtures.ts'
 import { admin, original } from '../tests/data.ts'
 import { assertFits } from '../tests/helpers.ts'
+import type { AppList, AppView } from '../src/types/app.ts'
+
+// demoApps 提供可公开的虚构应用及资源采样，不包含真实镜像仓库或环境变量值。
+function demoApps(): AppList {
+  const apps = [
+    {
+      id: '0c2d84bb-15a1-492b-938a-83282600c112',
+      name: '团队文档 API',
+      slug: 'handbook-api',
+      image: 'ghcr.io/example/handbook-api:v1.2',
+      memoryMiB: 256,
+      dataPath: '/app/data',
+    },
+    {
+      id: '0c2d84bb-15a1-492b-938a-83282600c113',
+      name: '团队状态页',
+      slug: 'status-page',
+      image: 'ghcr.io/example/status-page:v1.0',
+      memoryMiB: 128,
+      dataPath: '',
+    },
+  ].map((item, index): AppView => ({
+    app: {
+      ...item,
+      ownerId: admin.id,
+      ownerEmail: 'owner@example.com',
+      port: 3000,
+      cpus: 0.5,
+      healthPath: '/health',
+      envKeys: ['NODE_ENV', 'PORT'],
+      hasRegistry: false,
+      generation: 1,
+      status: 'ready',
+      createdAt: '2026-10-12T08:30:00Z',
+      updatedAt: '2026-10-12T08:30:00Z',
+      url: `https://stack-nest--app-${item.slug}.example.com/`,
+    },
+    runtime: {
+      state: 'running',
+      health: 'healthy',
+      healthCheck: 'http',
+      oomKilled: false,
+      exitCode: 0,
+      containerId: `example-container-${index}`,
+      imageId: 'example-image',
+      usage: {
+        cpuPercent: index === 0 ? 3.8 : 0.6,
+        memoryBytes: (index === 0 ? 82 : 28) * 1024 ** 2,
+        memoryLimitBytes: item.memoryMiB * 1024 ** 2,
+        pids: index === 0 ? 14 : 5,
+        sampledAt: '2026-10-12T08:30:00Z',
+      },
+      disk: {
+        writable: { usedBytes: 128 * 1024 ** 2, limitBytes: 1024 ** 3, source: 'xfs' },
+        persistent: item.dataPath
+          ? {
+              usedBytes: 32 * 1024 ** 2,
+              limitBytes: 1024 ** 3,
+              usedInodes: 335,
+              limitInodes: 100_000,
+              source: 'xfs',
+            }
+          : undefined,
+        sampledAt: '2026-10-12T08:30:00Z',
+      },
+    },
+  }))
+  return { apps, available: true, limits: { maxApps: 3, totalMemoryMiB: 2048, maxMemoryMiB: 1024 } }
+}
 
 // 演示使用虚构项目、邮箱和状态，不读取部署配置或连接真实服务器。
 test('生成文档界面截图', async ({ page, api, isMobile }) => {
@@ -61,6 +130,21 @@ test('生成文档界面截图', async ({ page, api, isMobile }) => {
   await page.route('**/api/version', (route) =>
     route.fulfill({ json: { version: 'dev', revision: 'unknown' } }),
   )
+  await page.route(/\/api\/apps(?:\/limits)?$/, (route) => {
+    if (route.request().method() !== 'GET') throw new Error('展示截图只能读取应用')
+    return route.fulfill({
+      json: route.request().url().endsWith('/limits')
+        ? {
+            maxApps: 3,
+            totalMemoryMiB: 2048,
+            revision: 1,
+            usedApps: 2,
+            allocatedMemoryMiB: 384,
+            maxTotalMemoryMiB: 3072,
+          }
+        : demoApps(),
+    })
+  })
   await page.route('**/api/system/diagnostics', (route) =>
     route.fulfill({
       json: {
@@ -88,6 +172,15 @@ test('生成文档界面截图', async ({ page, api, isMobile }) => {
     animations: 'disabled',
   })
   if (!isMobile) {
+    await page.goto('/apps')
+    await expect(page.getByRole('link', { name: '团队文档 API', exact: true })).toBeVisible()
+    await expect(page.getByText('HTTP 正常', { exact: true })).toHaveCount(2)
+    await assertFits(page)
+    await page.screenshot({
+      path: fileURLToPath(new URL('docker-desktop.png', images)),
+      fullPage: true,
+      animations: 'disabled',
+    })
     await page.emulateMedia({ colorScheme: 'dark' })
     await page.goto('/system')
     const card = page.getByRole('region', { name: '平台诊断' })
