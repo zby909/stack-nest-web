@@ -10,13 +10,13 @@
 - 少量圆角、阴影和装饰。
 - 避免紫青渐变、玻璃拟态、霓虹和大面积深色背景。
 
-但该 HTML 稿包含 Dockerfile、构建队列、服务器监控、实时日志等后续版本设想，**不再代表 v0.1 功能范围，也不是当前验收基准**。
+该 HTML 稿包含 Dockerfile、构建队列等探索设想，**不代表当前功能范围，也不是验收基准**。
 
-v0.1 的 UI 和交互以以下代码为准：
+当前 UI 和交互以以下代码为准：
 
 ```text
 web/src/App.tsx
 web/src/index.css
 ```
 
-v0.1 只展示真实存在的数据和能力：静态 ZIP 部署、项目列表、搜索、访问和删除。
+实际能力与部署方式见 [项目介绍](../README.md)和 [Server 产品范围](https://github.com/zby909/stack-nest-server/blob/main/docs/REQUIREMENTS.md)。

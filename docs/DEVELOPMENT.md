@@ -27,7 +27,7 @@ API 以 [Server OpenAPI](https://github.com/zby909/stack-nest-server/blob/main/o
 - `src/index.css` 的 `@theme` 管理语义颜色、字号和断点。
 - Ant Design 使用公开 token 和组件 API，避免全局覆盖内部结构。
 - 重复界面抽成组件，兼顾浅色、深色、手机和桌面。
-- 主按钮至少 44px 高，长文本和弹窗不造成横向溢出。
+- 手机主要操作区至少 44px 高，长文本和弹窗不造成横向溢出。
 - 使用 Tailwind Vite 插件与原生 CSS，不采用 SCSS 预处理 Tailwind。
 
 ThemeProvider 统一配色，index.html 在应用加载前恢复主题，避免刷新闪白。
