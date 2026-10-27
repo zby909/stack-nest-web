@@ -13,10 +13,13 @@ export default function ProjectExportModal({
   onClose: () => void
 }) {
   const versions = [
-    ...(project.deployments?.slice(0, 2) ?? []),
-    ...(project.draft ? [project.draft] : []),
+    ...(project.deployments?.slice(0, 2).map((version, index) => ({
+      version,
+      label: index === 0 ? '当前版本' : '上一版',
+    })) ?? []),
+    ...(project.draft ? [{ version: project.draft, label: '待发布版' }] : []),
   ]
-  const [selected, setSelected] = useState(versions[0]?.id ?? '')
+  const [selected, setSelected] = useState(versions[0]?.version.id ?? '')
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState<number | null>(null)
   const [error, setError] = useState('')
@@ -70,7 +73,7 @@ export default function ProjectExportModal({
       mask={{ closable: !busy }}
     >
       <p className="mb-4 text-sm leading-relaxed text-muted">
-        下载已部署的静态文件，可重新上传部署。RAR 上传也会导出为 ZIP。
+        下载已部署的静态文件，可重新上传部署。所有版本统一导出为 ZIP。
       </p>
       <Radio.Group
         className="w-full"
@@ -79,14 +82,14 @@ export default function ProjectExportModal({
         onChange={(event) => setSelected(event.target.value)}
       >
         <div className="flex flex-col gap-2">
-          {versions.map((version, index) => (
+          {versions.map(({ version, label }) => (
             <Radio
               key={version.id}
               value={version.id}
               className="m-0! flex! min-h-16 w-full items-center rounded-lg border border-line p-3 [&_.ant-radio-label]:min-w-0"
             >
               <div className="min-w-0 text-sm">
-                <strong>{index === 0 ? '当前版本' : '上一版'}</strong>
+                <strong>{label}</strong>
                 <p className="mt-1 break-all">{version.fileName}</p>
                 <p className="mt-1 text-xs text-muted">
                   {new Date(version.createdAt).toLocaleString('zh-CN')}
@@ -96,7 +99,9 @@ export default function ProjectExportModal({
           ))}
         </div>
       </Radio.Group>
-      {versions.length < 2 && <p className="mt-3 text-xs text-dim">首次更新后可导出上一版。</p>}
+      {(project.deployments?.length ?? 0) < 2 && (
+        <p className="mt-3 text-xs text-dim">正式发布两个版本后，可导出上一版。</p>
+      )}
       {busy && (
         <div className="mt-4">
           <p className="text-sm text-muted">

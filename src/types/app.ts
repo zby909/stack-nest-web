@@ -81,6 +81,7 @@ export type AppInput = {
   healthPath?: string
   env: Record<string, string>
   replaceEnv: boolean
+  envPatch?: Record<string, string | null>
   clearRegistry: boolean
   registry?: { username: string; password: string }
   generation?: number

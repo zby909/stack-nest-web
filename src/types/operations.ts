@@ -1,3 +1,12 @@
+export type BuildInfo = { version: string; revision: string }
+
+export type DiagnosticReport = {
+  checks: { name: string; status: 'pass' | 'warn' | 'fail'; message: string }[]
+  failed: boolean
+  checkedAt: string
+  durationMs: number
+}
+
 export type StorageStatus = {
   totalBytes?: number
   freeBytes?: number

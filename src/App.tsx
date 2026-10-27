@@ -1,10 +1,12 @@
 import { lazy, useCallback, useEffect, useMemo, useState } from 'react'
 import { Alert, Button, Form, Input, Modal, Select, Spin, Upload } from 'antd'
+import { siteUploadAccept, supportedSiteFile } from './lib/siteUpload'
 import { deleteProject, getProject, listProjects } from './api/projects'
 import UploadProgress from './components/UploadProgress'
 import UploadRecoveryBanner, { type RecoveredUpload } from './components/UploadRecoveryBanner'
 import { recoverTarget } from './lib/uploadRecovery'
 import { useResumableUpload } from './lib/useResumableUpload'
+import { usePolling } from './lib/usePolling'
 import StatCard from './components/StatCard'
 import StorageCard from './components/StorageCard'
 import AppNavigation from './components/AppNavigation'
@@ -92,26 +94,24 @@ function App({
     document.title = `${titles[page]} · StackNest`
   }, [page])
 
-  // loadStorage 按服务端实际磁盘状态同步上传入口。
-  const loadStorage = useCallback(async () => {
+  // readStorage 按服务端实际磁盘状态同步上传入口。
+  const readStorage = useCallback(async (signal: AbortSignal) => {
     setStorageLoading(true)
     try {
-      setStorageStatus(await getStorage())
+      const next = await getStorage(signal)
+      if (signal.aborted) return
+      setStorageStatus(next)
       setStorageError('')
     } catch (failure) {
+      if (signal.aborted) return
       setStorageStatus(null)
       setStorageError(getErrorMessage(failure, '暂时无法连接服务，已暂停上传和更新，请重新检查'))
     } finally {
-      setStorageLoading(false)
+      if (!signal.aborted) setStorageLoading(false)
     }
   }, [])
 
-  useEffect(() => {
-    if (page !== 'projects') return
-    void loadStorage()
-    const timer = window.setInterval(() => void loadStorage(), 30_000)
-    return () => window.clearInterval(timer)
-  }, [page, loadStorage])
+  const loadStorage = usePolling(readStorage, 30_000, page === 'projects')
 
   // 从后端读取项目列表，并同步页面加载状态。
   const loadProjects = useCallback(async () => {
@@ -180,15 +180,15 @@ function App({
     form.resetFields()
   }
 
-  // 提交项目基本信息和压缩包，完成一次静态项目部署。
+  // 提交项目基本信息和上传文件，完成一次静态项目部署。
   const handleSubmit = async (values: CreateProjectForm) => {
     if (submitting) return
     if (!selectedFile && !upload.readyToComplete) {
-      setCreateError('请选择 ZIP 或 RAR 文件')
+      setCreateError('请选择 ZIP、RAR 或 HTML 文件')
       return
     }
     if (selectedFile && selectedFile.size > maxUploadBytes) {
-      setCreateError(`压缩包不能超过 ${formatBytes(maxUploadBytes)}`)
+      setCreateError(`上传文件不能超过 ${formatBytes(maxUploadBytes)}`)
       return
     }
 
@@ -268,7 +268,7 @@ function App({
                 </h1>
                 <p className="text-sm leading-relaxed text-muted desktop:text-xs">
                   {page === 'projects'
-                    ? '上传 ZIP 或 RAR，StackNest 会校验并生成预览，确认后发布站点。'
+                    ? '上传 ZIP、RAR 或单个 HTML，StackNest 会校验并生成预览，确认后发布站点。'
                     : page === 'apps'
                       ? '填写镜像地址，部署单个 HTTP 服务并管理运行状态。'
                       : page === 'users'
@@ -349,7 +349,7 @@ function App({
             </LazyPanel>
           ) : page === 'system' ? (
             <LazyPanel key={page}>
-              <SystemOverview />
+              <SystemOverview user={user} />
             </LazyPanel>
           ) : (
             <>
@@ -376,7 +376,7 @@ function App({
                 />
                 <StatCard
                   label="部署方式"
-                  value="ZIP / RAR"
+                  value="HTML / ZIP / RAR"
                   description={`单包最大 ${formatBytes(maxUploadBytes)}`}
                   compactOnMobile
                 />
@@ -470,7 +470,7 @@ function App({
                     <span className="text-xs">
                       {query.trim()
                         ? '换一个关键词试试。'
-                        : '上传一个包含 index.html 的 ZIP 或 RAR 开始部署。'}
+                        : '上传单个 HTML，或包含 index.html 的 ZIP / RAR 开始部署。'}
                     </span>
                     {!query.trim() && (
                       <Button disabled={!canUpload} onClick={() => setShowCreate(true)}>
@@ -600,7 +600,8 @@ function App({
         onCancel={closeCreateModal}
       >
         <p className="-mt-1 mb-4.5 text-xs text-muted">
-          压缩包根目录或唯一一级目录中需要包含 index.html。单包不超过 {formatBytes(maxUploadBytes)}
+          可上传单个 HTML，或根目录 / 唯一一级目录中包含 index.html 的压缩包。文件不超过{' '}
+          {formatBytes(maxUploadBytes)}
           ，解压不超过 200 MiB。
         </p>
         {createError && <Alert className="mb-4" type="error" showIcon title={createError} />}
@@ -659,18 +660,18 @@ function App({
             >
               <Input.TextArea rows={3} placeholder="记录首版内容或更新内容" />
             </Form.Item>
-            <Form.Item className="col-span-full" label="静态项目压缩包" required>
+            <Form.Item className="col-span-full" label="静态项目文件" required>
               <Upload.Dragger
                 disabled={submitting}
-                accept=".zip,.rar"
+                accept={siteUploadAccept}
                 maxCount={1}
                 beforeUpload={(file) => {
-                  if (!/\.(zip|rar)$/i.test(file.name)) {
-                    setCreateError('请选择 ZIP 或 RAR 文件')
+                  if (!supportedSiteFile(file.name)) {
+                    setCreateError('请选择 ZIP、RAR 或 HTML 文件')
                     return Upload.LIST_IGNORE
                   }
                   if (file.size > maxUploadBytes) {
-                    setCreateError(`压缩包不能超过 ${formatBytes(maxUploadBytes)}`)
+                    setCreateError(`上传文件不能超过 ${formatBytes(maxUploadBytes)}`)
                     return Upload.LIST_IGNORE
                   }
                   setCreateError('')
@@ -680,9 +681,9 @@ function App({
                 onRemove={() => setSelectedFile(null)}
               >
                 <p className="mx-auto mb-2 inline-grid h-7.5 w-16 place-items-center rounded-lg border border-line-strong bg-panel text-caption font-bold text-muted">
-                  ZIP / RAR
+                  静态文件
                 </p>
-                <p className="text-base">选择或拖入 ZIP / RAR 文件</p>
+                <p className="text-base">选择或拖入 HTML / ZIP / RAR 文件</p>
                 <p className="mt-1 text-sm text-muted">
                   支持普通 HTML 或 Vite / React 构建后的 dist 压缩包
                 </p>
@@ -690,7 +691,8 @@ function App({
             </Form.Item>
           </div>
           <div className="rounded-lg bg-subtle px-3 py-2.5 text-caption text-dim">
-            压缩包会进行路径、链接、文件数量和解压大小检查；RAR 仅支持未加密单卷文件。
+            单个 HTML 将作为 index.html 发布，资源请内嵌或使用外部地址；多文件项目上传 ZIP /
+            RAR，RAR 仅支持未加密单卷文件。
           </div>
           <UploadProgress upload={upload} />
           {!canUpload && !submitting && (

@@ -65,7 +65,11 @@ test('分片和发布响应丢失后自动恢复，不重复传输或发布', as
   const chunks = api.requests.filter(
     (request) => request.method === 'PATCH' && request.path.startsWith('/api/uploads/'),
   )
-  expect(chunks.map((chunk) => Number(chunk.offset))).toEqual([0, 4 * 1024 ** 2])
+  const offsets = chunks.map((chunk) => Number(chunk.offset))
+  expect(offsets[0]).toBe(0)
+  expect(offsets[1]).toBeGreaterThan(0)
+  expect(new Set(offsets).size).toBe(offsets.length)
+  expect([...api.uploads.records.values()][0].offset).toBe(content.length)
   expect(api.requests.find((request) => request.path === '/api/uploads')?.body).toMatchObject({
     sha256: createHash('sha256').update(content).digest('hex'),
   })
@@ -90,12 +94,13 @@ test('暂停后刷新重选原文件，从已完成分片继续', async ({ page,
   dialog = await openUpdate(page)
   await expect(dialog).not.toBeVisible()
   expect([...api.uploads.records.keys()]).toEqual([id])
-  expect(
-    api.requests
-      .slice(before)
-      .filter((request) => request.method === 'PATCH')
-      .map((request) => Number(request.offset)),
-  ).toEqual([4 * 1024 ** 2])
+  const resumedOffsets = api.requests
+    .slice(before)
+    .filter((request) => request.method === 'PATCH')
+    .map((request) => Number(request.offset))
+  expect(resumedOffsets[0]).toBe(4 * 1024 ** 2)
+  expect(resumedOffsets.every((offset) => offset >= 4 * 1024 ** 2)).toBe(true)
+  expect(new Set(resumedOffsets).size).toBe(resumedOffsets.length)
   expect(api.uploads.publishCount).toBe(1)
 })
 

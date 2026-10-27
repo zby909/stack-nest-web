@@ -53,7 +53,7 @@ test('项目页恢复更新任务、原说明与服务端进度', async ({ page,
     '恢复说明\n第二行内容',
   )
   await expect(dialog.getByRole('textbox', { name: '更新说明（可选）' })).toBeDisabled()
-  await expect(dialog.getByText(/请重新选择原压缩包/)).toBeVisible()
+  await expect(dialog.getByText(/请重新选择原文件/)).toBeVisible()
   await expect(dialog.locator('input[type=file]')).toHaveValue('')
   if (isMobile) await page.setViewportSize({ width: 320, height: 900 })
   for (const colorScheme of ['light', 'dark'] as const) {
@@ -69,12 +69,13 @@ test('项目页恢复更新任务、原说明与服务端进度', async ({ page,
   await dialog.getByRole('button', { name: '继续上传', exact: true }).click()
   await expect(dialog).not.toBeVisible()
   expect([...api.uploads.records.keys()]).toEqual([identity])
-  expect(
-    api.requests
-      .slice(before)
-      .filter((item) => item.method === 'PATCH')
-      .map((item) => Number(item.offset)),
-  ).toEqual([4 * 1024 ** 2])
+  const resumedOffsets = api.requests
+    .slice(before)
+    .filter((item) => item.method === 'PATCH')
+    .map((item) => Number(item.offset))
+  expect(resumedOffsets[0]).toBe(4 * 1024 ** 2)
+  expect(resumedOffsets.every((offset) => offset >= 4 * 1024 ** 2)).toBe(true)
+  expect(new Set(resumedOffsets).size).toBe(resumedOffsets.length)
   expect(api.projects[0].draft?.notes).toBe('恢复说明\n第二行内容')
   await page.goto('/projects')
   await expect(page.getByRole('region', { name: '未完成上传' })).not.toBeVisible()

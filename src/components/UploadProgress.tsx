@@ -31,7 +31,7 @@ export default function UploadProgress({
             <span className="break-all">
               {upload.recovery.fileName} · {formatBytes(upload.recovery.size)}
               {!upload.readyToComplete &&
-                '。请重新选择原压缩包，校验一致后继续；表单信息已自动恢复。'}
+                '。请重新选择原文件，校验一致后继续；表单信息已自动恢复。'}
             </span>
           }
         />
@@ -47,6 +47,11 @@ export default function UploadProgress({
               ? '尚未开始传输，请检查错误提示后重试。'
               : labels[upload.phase]}
           </p>
+          {upload.phase === 'uploading' && upload.confirmedPercent !== undefined && (
+            <p className="text-xs text-muted">
+              服务器已确认 {upload.confirmedPercent}%；当前分片发送完毕后仍需等待服务器确认。
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             {upload.busy && upload.phase !== 'publishing' && (
               <Button className="h-11 sm:h-8" disabled={false} onClick={upload.pause}>

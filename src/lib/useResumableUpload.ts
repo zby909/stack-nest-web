@@ -51,7 +51,8 @@ export function useResumableUpload(userId: string) {
       setHasSession(true)
       setRecovery(current)
       setReadyToComplete(status.offset === status.size)
-      setState({ phase: 'paused', percent: Math.floor((status.offset * 100) / status.size) })
+      const percent = Math.floor((status.offset * 100) / status.size)
+      setState({ phase: 'paused', percent, confirmedPercent: percent })
       setError('')
       rememberRecovery(current)
     },
@@ -60,7 +61,7 @@ export function useResumableUpload(userId: string) {
 
   // notify 同步传输状态，文件已全部接收后允许直接确认结果。
   const notify = (next: UploadProgress) => {
-    if (!mounted.current) return
+    if (!mounted.current || !controller.current || controller.current.signal.aborted) return
     setState(next)
     if (next.phase === 'publishing') setReadyToComplete(true)
   }
@@ -84,7 +85,11 @@ export function useResumableUpload(userId: string) {
       return project
     } catch (failure) {
       if (mounted.current) {
-        setState((current) => ({ ...current, phase: active.signal.aborted ? 'paused' : 'error' }))
+        setState((current) => ({
+          ...current,
+          percent: current.confirmedPercent ?? current.percent,
+          phase: active.signal.aborted ? 'paused' : 'error',
+        }))
         if (!active.signal.aborted)
           setError(getErrorMessage(failure, '连接中断或处理结果尚待确认，请继续原上传以确认结果'))
       }

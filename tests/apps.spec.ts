@@ -177,19 +177,73 @@ test('部署与编辑应用保留敏感配置', async ({ page }) => {
   await expect(dialog.getByLabel('HTTP 健康检查路径（可选）', { exact: true })).toHaveValue(
     '/health',
   )
-  await expect(dialog.getByLabel('环境变量', { exact: true })).toBeDisabled()
-  await expect(dialog.getByLabel('环境变量', { exact: true })).toHaveValue('')
+  await expect(dialog.getByLabel('变量名称 1', { exact: true })).toHaveValue('SECRET')
+  await expect(dialog.getByLabel('SECRET 操作', { exact: true })).toHaveCount(1)
+  await expect(dialog.locator('input[type="password"]')).toHaveCount(0)
   await dialog.getByText('私有仓库（已有凭据，留空保留）', { exact: true }).click()
   await expect(dialog.getByLabel('仓库密码 / 访问令牌', { exact: true })).toHaveValue('')
   await dialog.getByRole('button', { name: '提交更新', exact: true }).click()
   await expect(dialog).not.toBeVisible()
   expect(state.writes[1].body).toMatchObject({
     replaceEnv: false,
+    envPatch: {},
     clearRegistry: false,
     generation: 1,
     healthPath: '/health',
   })
   expect(state.writes[1].body).not.toHaveProperty('registry')
+})
+
+// 按项修改、空字符串和明确删除可以一起提交，未改动的敏感值不会被覆盖。
+test('环境变量逐项修改与明确删除', async ({ page }) => {
+  const state = await installAPI(page)
+  state.apps[0].app.envKeys = ['KEEP', 'CHANGE', 'EMPTY', 'DELETE']
+  await page.goto('/apps')
+  await page.getByRole('button', { name: /^更\s*新$/ }).click()
+  const dialog = page.getByRole('dialog')
+  for (const key of ['CHANGE', 'EMPTY']) {
+    const select = dialog.getByRole('combobox', { name: `${key} 操作` })
+    await select.click()
+    await select.press('ArrowDown')
+    await select.press('Enter')
+  }
+  await dialog.getByLabel('CHANGE 新值', { exact: true }).fill('changed=a=b')
+  const remove = dialog.getByRole('combobox', { name: 'DELETE 操作' })
+  await remove.click()
+  await remove.press('ArrowDown')
+  await remove.press('ArrowDown')
+  await remove.press('Enter')
+  await dialog.getByRole('button', { name: '添加环境变量', exact: true }).click()
+  await dialog.getByLabel('变量名称 5', { exact: true }).fill('NEW')
+  await dialog.getByLabel('NEW 新值', { exact: true }).fill('new-value')
+  await dialog.getByRole('button', { name: '提交更新', exact: true }).click()
+  await expect(dialog).not.toBeVisible()
+  expect(state.writes[0].body).toMatchObject({
+    env: {},
+    replaceEnv: false,
+    generation: 1,
+    envPatch: { CHANGE: 'changed=a=b', EMPTY: '', DELETE: null, NEW: 'new-value' },
+  })
+  expect(state.writes[0].body.envPatch).not.toHaveProperty('KEEP')
+})
+
+// 重复键不能提交；整批替换需明确勾选，并与逐项补丁互斥。
+test('重复环境变量和整体替换', async ({ page }) => {
+  const state = await installAPI(page)
+  await page.goto('/apps')
+  await page.getByRole('button', { name: /^更\s*新$/ }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByRole('button', { name: '添加环境变量', exact: true }).click()
+  await dialog.getByLabel('变量名称 2', { exact: true }).fill('SECRET')
+  await dialog.getByRole('button', { name: '提交更新', exact: true }).click()
+  await expect(dialog.getByRole('alert')).toContainText('SECRET 重复')
+  expect(state.writes).toHaveLength(0)
+  await dialog.getByRole('checkbox', { name: '整体替换环境变量（清除未填写的变量）' }).check()
+  await dialog.getByLabel('环境变量', { exact: true }).fill('REPLACEMENT=')
+  await dialog.getByRole('button', { name: '提交更新', exact: true }).click()
+  await expect(dialog).not.toBeVisible()
+  expect(state.writes[0].body).toMatchObject({ env: { REPLACEMENT: '' }, replaceEnv: true })
+  expect(state.writes[0].body).not.toHaveProperty('envPatch')
 })
 
 // 更高的实例预算允许 1 GiB 应用，数字输入会将越界值校正到实际上限。

@@ -166,3 +166,40 @@ test('更新与回退刷新空间统计', async ({ page, api }) => {
     JSON.stringify('updated-version'),
   )
 })
+
+// 草稿标签不随正式版数量变化，下载请求和文件名均对应用户选中的草稿。
+for (const publishedCount of [0, 1, 2]) {
+  test(`导出待发布版：已有 ${publishedCount} 个正式版`, async ({ page, api }) => {
+    const project = api.projects[0]
+    project.deployments = project.deployments!.slice(0, publishedCount)
+    project.status = publishedCount ? 'online' : 'draft'
+    project.draft = {
+      ...original.deployments![0],
+      id: 'draft-export',
+      status: 'draft',
+      fileName: 'unpublished.zip',
+    }
+    await page.goto('/projects')
+    const dialog = await openMenu(page, '导出 ZIP')
+    await expect(dialog.getByRole('radio')).toHaveCount(publishedCount + 1)
+    await expect(dialog.getByRole('radio', { name: /^当前版本/ })).toHaveCount(
+      publishedCount ? 1 : 0,
+    )
+    await expect(dialog.getByRole('radio', { name: /^上一版/ })).toHaveCount(
+      publishedCount === 2 ? 1 : 0,
+    )
+    await expect(
+      dialog.getByRole('radio', { name: publishedCount ? /^当前版本/ : /^待发布版/ }),
+    ).toBeChecked()
+    await dialog.getByRole('radio', { name: /^待发布版/ }).check()
+    const requestPending = page.waitForRequest((request) =>
+      new URL(request.url()).pathname.endsWith('/export'),
+    )
+    const downloadPending = page.waitForEvent('download')
+    await dialog.getByRole('button', { name: /下载 ZIP$/ }).click()
+    const request = await requestPending
+    const download = await downloadPending
+    expect(new URL(request.url()).searchParams.get('deploymentId')).toBe('draft-export')
+    expect(download.suggestedFilename()).toBe(`${original.slug}-draft-export.zip`)
+  })
+}

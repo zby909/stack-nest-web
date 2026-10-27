@@ -1,3 +1,4 @@
+import { supportedSiteFile } from './siteUpload'
 import type { UploadSession, UploadTarget } from '../api/uploads'
 
 export type UploadRecovery = UploadSession & {
@@ -31,7 +32,7 @@ function validRecovery(value: unknown, userId: string): value is UploadRecovery 
     /^stacknest:upload:[0-9a-f]{64}$/.test(record.key) &&
     typeof record.fileName === 'string' &&
     record.fileName.length <= 512 &&
-    /\.(zip|rar)$/i.test(record.fileName) &&
+    supportedSiteFile(record.fileName) &&
     typeof record.size === 'number' &&
     Number.isSafeInteger(record.size) &&
     record.size > 0 &&

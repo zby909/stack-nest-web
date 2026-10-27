@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Alert, Checkbox, Collapse, Form, Input, InputNumber, Modal } from 'antd'
-import { parseEnv } from '../lib/appEnvironment'
+import { environmentPatch, parseEnv, type EnvironmentRow } from '../lib/appEnvironment'
+import DockerAppEnvironment from './DockerAppEnvironment'
 import { saveApp } from '../api/apps'
 import { getErrorMessage } from '../lib/format'
 import type { AppInput, AppView } from '../types/app'
 
-type Values = Omit<AppInput, 'env' | 'registry'> & {
+type Values = Omit<AppInput, 'env' | 'envPatch' | 'registry'> & {
   envText?: string
   registryUsername?: string
   registryPassword?: string
@@ -28,9 +29,19 @@ export default function DockerAppForm({
   const [error, setError] = useState('')
   const replacing = Form.useWatch('replaceEnv', form)
   const app = target?.app
+  const [environment, setEnvironment] = useState<EnvironmentRow[]>(() =>
+    (app?.envKeys ?? []).map((key) => ({
+      id: key,
+      key,
+      existing: true,
+      action: 'keep',
+      value: '',
+    })),
+  )
 
   // submit 保留未替换的配置，仓库密码不会从服务端回填。
   const submit = async () => {
+    if (saving) return
     let values: Values
     try {
       values = await form.validateFields()
@@ -50,7 +61,8 @@ export default function DockerAppForm({
           ...fields,
           dataPath: fields.dataPath ?? '',
           healthPath: fields.healthPath ?? '',
-          env: parseEnv(envText ?? ''),
+          env: !app || fields.replaceEnv ? parseEnv(envText ?? '') : {},
+          envPatch: app && !fields.replaceEnv ? environmentPatch(environment) : undefined,
           replaceEnv: !app || fields.replaceEnv === true,
           clearRegistry: fields.clearRegistry === true,
           registry:
@@ -93,6 +105,7 @@ export default function DockerAppForm({
       <Form
         form={form}
         layout="vertical"
+        disabled={saving}
         initialValues={{
           name: app?.name ?? '',
           slug: app?.slug ?? '',
@@ -180,26 +193,24 @@ export default function DockerAppForm({
         </Form.Item>
         {app && (
           <Form.Item name="replaceEnv" valuePropName="checked">
-            <Checkbox>替换环境变量（默认保留现有配置）</Checkbox>
+            <Checkbox>整体替换环境变量（清除未填写的变量）</Checkbox>
           </Form.Item>
         )}
-        {app && (
-          <p className="mb-3 text-xs break-words text-muted">
-            已配置变量：{app.envKeys.join('、') || '无'}；值不回显。
-          </p>
+        {app && !replacing ? (
+          <DockerAppEnvironment rows={environment} onChange={setEnvironment} />
+        ) : (
+          <Form.Item
+            name="envText"
+            label="环境变量"
+            extra="每行 KEY=value，不需要引号。替换时留空会清除全部变量。"
+          >
+            <Input.TextArea
+              rows={4}
+              autoComplete="off"
+              placeholder={'NODE_ENV=production\nPORT=3000'}
+            />
+          </Form.Item>
         )}
-        <Form.Item
-          name="envText"
-          label="环境变量"
-          extra="每行 KEY=value，不需要引号。替换时留空会清除全部变量。"
-        >
-          <Input.TextArea
-            rows={4}
-            disabled={!!app && !replacing}
-            autoComplete="off"
-            placeholder={'NODE_ENV=production\nPORT=3000'}
-          />
-        </Form.Item>
         <Collapse
           items={[
             {

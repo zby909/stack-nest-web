@@ -12,3 +12,30 @@ export function parseEnv(text: string): Record<string, string> {
   }
   return result
 }
+
+export type EnvironmentRow = {
+  id: string
+  key: string
+  existing: boolean
+  action: 'keep' | 'set' | 'delete'
+  value: string
+}
+
+// environmentPatch 只提交显式改动；空值是设置为空，null 才表示删除。
+export function environmentPatch(rows: EnvironmentRow[]): Record<string, string | null> {
+  const patch = Object.create(null) as Record<string, string | null>
+  const keys = new Set<string>()
+  for (const row of rows) {
+    const key = row.key.trim()
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) || key.length > 128)
+      throw new Error('环境变量名称须以字母或下划线开头，只能包含字母、数字和下划线。')
+    if (keys.has(key)) throw new Error(`环境变量 ${key} 重复。`)
+    keys.add(key)
+    if (row.action === 'delete') patch[key] = null
+    else if (row.action === 'set') patch[key] = row.value
+  }
+  if (Object.keys(patch).length > 64) throw new Error('一次最多修改 64 个环境变量。')
+  if (rows.filter((row) => row.action !== 'delete').length > 64)
+    throw new Error('环境变量最多 64 个。')
+  return patch
+}

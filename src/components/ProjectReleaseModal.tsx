@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Alert, Input, Modal, Upload } from 'antd'
+import { siteUploadAccept, supportedSiteFile } from '../lib/siteUpload'
 import { rollbackProject } from '../api/projects'
 import { useResumableUpload } from '../lib/useResumableUpload'
 import UploadProgress from './UploadProgress'
@@ -98,18 +99,23 @@ export default function ProjectReleaseModal({
       cancelText="取消"
       onOk={() => void submit()}
       onCancel={onClose}
-      confirmLoading={busy}
+      confirmLoading={busy || upload.busy}
       okButtonProps={{
         disabled:
+          busy ||
+          upload.busy ||
           upload.discarding ||
           (!upload.readyToComplete && !!project.draft) ||
           (revert ? !previous : !file && !upload.readyToComplete),
         className: 'h-11 sm:h-8',
       }}
-      cancelButtonProps={{ disabled: busy || upload.discarding, className: 'h-11 sm:h-8' }}
-      closable={!busy && !upload.discarding}
-      keyboard={!busy && !upload.discarding}
-      mask={{ closable: !busy && !upload.discarding }}
+      cancelButtonProps={{
+        disabled: busy || upload.busy || upload.discarding,
+        className: 'h-11 sm:h-8',
+      }}
+      closable={!busy && !upload.busy && !upload.discarding}
+      keyboard={!busy && !upload.busy && !upload.discarding}
+      mask={{ closable: !busy && !upload.busy && !upload.discarding }}
     >
       <p className="mb-4 text-sm text-muted">项目网址和归属保持不变。</p>
       <div className="mb-4 space-y-2 rounded-lg bg-subtle p-3 text-sm">
@@ -144,15 +150,15 @@ export default function ProjectReleaseModal({
           />
           <Upload.Dragger
             disabled={busy}
-            accept=".zip,.rar"
+            accept={siteUploadAccept}
             maxCount={1}
             beforeUpload={(next) => {
-              if (!/\.(zip|rar)$/i.test(next.name)) {
-                setError('请选择 ZIP 或 RAR 文件')
+              if (!supportedSiteFile(next.name)) {
+                setError('请选择 ZIP、RAR 或 HTML 文件')
                 return Upload.LIST_IGNORE
               }
               if (next.size > maxUploadBytes) {
-                setError(`压缩包不能超过 ${formatBytes(maxUploadBytes)}`)
+                setError(`上传文件不能超过 ${formatBytes(maxUploadBytes)}`)
                 return Upload.LIST_IGNORE
               }
               setError('')
@@ -161,12 +167,13 @@ export default function ProjectReleaseModal({
             }}
             onRemove={() => setFile(null)}
           >
-            <p className="text-base">选择或拖入新的 ZIP / RAR 文件</p>
+            <p className="text-base">选择或拖入新的 HTML / ZIP / RAR 文件</p>
             <p className="mt-2 text-sm text-muted">
-              最大 {formatBytes(maxUploadBytes)}，须包含 index.html
+              最大 {formatBytes(maxUploadBytes)}；压缩包须包含 index.html
             </p>
           </Upload.Dragger>
           <p className="mt-3 text-xs text-muted">
+            单个 HTML 将作为 index.html 发布，配套资源请内嵌或使用外部地址。
             上传后先生成独立预览，确认发布才会替换站点。保留当前正式版、上一正式版，另保留一个待发布版。
           </p>
         </>

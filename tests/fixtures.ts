@@ -302,6 +302,13 @@ export const test = base.extend<{ api: MockAPI }>({
           )
           return reply({ events, total, page, pageSize })
         }
+        if (path === '/api/version' && method === 'GET')
+          return state.role === 'admin' || state.role === 'superadmin'
+            ? reply({
+                version: 'v1.2.3-test.1',
+                revision: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+              })
+            : reply({ error: '仅管理员可访问' }, 403)
         if (path === '/api/system' && method === 'GET')
           return reply({
             cpuPercent: 6.5,

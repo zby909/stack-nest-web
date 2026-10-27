@@ -2,6 +2,7 @@ import axios from 'axios'
 import { http } from '../lib/http'
 import type { Project } from '../types/project'
 import { forgetRecovery, rememberRecovery, type UploadRecovery } from '../lib/uploadRecovery'
+import { getErrorMessage } from '../lib/format'
 
 export type UploadTarget = {
   preview?: boolean
@@ -14,13 +15,14 @@ export type UploadTarget = {
 }
 export type UploadPhase =
   'idle' | 'hashing' | 'uploading' | 'retrying' | 'publishing' | 'paused' | 'error' | 'done'
-export type UploadProgress = { phase: UploadPhase; percent: number }
+export type UploadProgress = { phase: UploadPhase; percent: number; confirmedPercent?: number }
 export type UploadSession = { id: string; key: string; userId: string }
 export type UploadStatus = {
   id: string
   offset: number
   size: number
   chunkSize: number
+  minChunkSize?: number
   completed: boolean
   expiresAt: string
 }
@@ -73,7 +75,8 @@ function retryable(error: unknown) {
   return (
     axios.isAxiosError(error) &&
     !axios.isCancel(error) &&
-    (!error.response || [408, 409, 429, 502, 503, 504].includes(error.response.status))
+    (!error.response ||
+      [408, 409, 429, 502, 503, 504, 520, 521, 522, 523, 524].includes(error.response.status))
   )
 }
 
@@ -103,11 +106,23 @@ function checkStatus(status: UploadStatus, size: number, id: string) {
     status.offset < 0 ||
     status.offset > size ||
     status.chunkSize !== 4 * 1024 * 1024 ||
+    (status.minChunkSize !== undefined &&
+      (!Number.isSafeInteger(status.minChunkSize) ||
+        status.minChunkSize < 1 ||
+        status.minChunkSize > status.chunkSize)) ||
     typeof status.completed !== 'boolean' ||
+    (status.completed && status.offset !== size) ||
     !Number.isFinite(Date.parse(status.expiresAt))
   )
     throw new Error('服务器返回的上传进度无效')
   return status
+}
+
+// stoppedUpload 明确结束自动重试，保留请求编号和原任务供用户稍后继续。
+function stoppedUpload(error: unknown) {
+  return new Error(
+    `自动重试已停止，已确认的分片仍保留，请稍后点击继续上传。${getErrorMessage(error, '网络连接中断或等待服务器确认超时。')}`,
+  )
 }
 
 // uploadProject 以服务器已提交偏移为准顺序传片，并用同一会话编号重试发布。
@@ -169,32 +184,49 @@ export async function uploadProject(
   onSession(session)
   const path = `/api/uploads/${encodeURIComponent(session.id)}`
   let status = checkStatus(
-    (await http.post<UploadStatus>('/api/uploads', { id: session.id, ...normalized }, { signal }))
-      .data,
+    (
+      await http.post<UploadStatus>(
+        '/api/uploads',
+        { id: session.id, ...normalized },
+        { signal, timeout: 15_000 },
+      )
+    ).data,
     file.size,
     session.id,
   )
   checkpoint(status)
+  const minChunk = status.minChunkSize ?? status.chunkSize
+  // 老服务仍按原协议传片；支持小分片时先用 512 KiB，弱网失败后缩小至最小值。
+  let chunkSize = Math.max(minChunk, Math.min(status.chunkSize, 512 * 1024))
   let failures = 0
   while (status.offset < file.size && !status.completed) {
     signal.throwIfAborted()
     const offset = status.offset
-    notify({ phase: 'uploading', percent: Math.floor((offset * 100) / file.size) })
+    const confirmedPercent = Math.floor((offset * 100) / file.size)
+    const chunk = file.slice(offset, offset + chunkSize)
+    let progressActive = true
+    notify({ phase: 'uploading', percent: confirmedPercent, confirmedPercent })
     try {
       status = checkStatus(
         (
-          await http.patch<UploadStatus>(path, file.slice(offset, offset + status.chunkSize), {
+          await http.patch<UploadStatus>(path, chunk, {
             signal,
-            timeout: 5 * 60_000,
+            timeout: 60_000,
             headers: {
               'Content-Type': 'application/octet-stream',
               'Upload-Offset': String(offset),
             },
-            onUploadProgress: ({ loaded }) =>
+            onUploadProgress: ({ loaded }) => {
+              if (!progressActive || signal.aborted) return
               notify({
                 phase: 'uploading',
-                percent: Math.min(99, Math.floor(((offset + loaded) * 100) / file.size)),
-              }),
+                percent: Math.min(
+                  99,
+                  Math.floor(((offset + Math.min(loaded, chunk.size)) * 100) / file.size),
+                ),
+                confirmedPercent,
+              })
+            },
           })
         ).data,
         file.size,
@@ -204,15 +236,22 @@ export async function uploadProject(
       checkpoint(status)
       failures = 0
     } catch (error) {
-      if (!retryable(error) || ++failures > 3) throw error
-      notify({ phase: 'retrying', percent: Math.floor((offset * 100) / file.size) })
+      progressActive = false
+      if (!retryable(error)) throw error
+      if (++failures > 3) throw stoppedUpload(error)
+      if (!axios.isAxiosError(error) || ![409, 429].includes(error.response?.status ?? 0))
+        chunkSize = Math.max(minChunk, Math.floor(chunkSize / 2))
+      notify({ phase: 'retrying', percent: confirmedPercent, confirmedPercent })
       await waitRetry(failures * 1500, signal)
       status = checkStatus(
-        (await http.get<UploadStatus>(path, { signal })).data,
+        (await http.get<UploadStatus>(path, { signal, timeout: 15_000 })).data,
         file.size,
         session.id,
       )
       checkpoint(status)
+      if (status.offset > offset) failures = 0
+    } finally {
+      progressActive = false
     }
   }
   return confirmUpload(session, signal, notify)

@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Alert, Button, Spin, Tag } from 'antd'
 import { getBackupStatus } from '../api/operations'
 import { formatBytes, getErrorMessage } from '../lib/format'
 import type { BackupStatus } from '../types/operations'
+import { usePolling } from '../lib/usePolling'
 
 const labels: Record<BackupStatus['state'], string> = {
   not_configured: '未配置',
@@ -32,24 +33,22 @@ export default function BackupStatusCard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  // refresh 与资源快照互不影响，页面离开后停止轮询。
-  const refresh = useCallback(async () => {
+  // readBackup 与资源快照互不影响，取消请求时保留已有状态。
+  const readBackup = useCallback(async (signal: AbortSignal) => {
     setLoading(true)
     try {
-      setStatus(await getBackupStatus())
+      const next = await getBackupStatus(signal)
+      if (signal.aborted) return
+      setStatus(next)
       setError('')
     } catch (failure) {
-      setError(getErrorMessage(failure, '备份状态暂时无法读取'))
+      if (!signal.aborted) setError(getErrorMessage(failure, '备份状态暂时无法读取'))
     } finally {
-      setLoading(false)
+      if (!signal.aborted) setLoading(false)
     }
   }, [])
 
-  useEffect(() => {
-    void refresh()
-    const timer = window.setInterval(() => void refresh(), 30_000)
-    return () => window.clearInterval(timer)
-  }, [refresh])
+  const refresh = usePolling(readBackup, 30_000)
 
   const last = status?.lastSuccess
   const failed = status?.state === 'failed' || status?.state === 'interrupted'

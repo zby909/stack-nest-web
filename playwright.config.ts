@@ -28,6 +28,10 @@ export default defineConfig({
     { name: 'mobile', use: { ...devices['Pixel 7'], viewport: { width: 390, height: 844 } } },
   ],
   webServer: {
+    env: {
+      STACKNEST_BUILD_VERSION: 'v1.2.3-test.1',
+      STACKNEST_BUILD_REVISION: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    },
     command: 'pnpm build && pnpm preview --host 127.0.0.1 --port 4175 --strictPort',
     url: 'http://127.0.0.1:4175',
     reuseExistingServer: false,

@@ -1,9 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Alert, Button, Progress, Spin } from 'antd'
 import { getSystem } from '../api/operations'
 import { formatBytes, getErrorMessage } from '../lib/format'
 import type { SystemStatus } from '../types/operations'
 import BackupStatusCard from './BackupStatusCard'
+import PlatformDiagnostics from './PlatformDiagnostics'
+import PlatformVersion from './PlatformVersion'
+import type { AuthUser } from '../types/auth'
+import { usePolling } from '../lib/usePolling'
 
 // formatUptime 将服务器运行秒数转换为易读的天、小时和分钟。
 function formatUptime(seconds: number) {
@@ -34,31 +38,29 @@ function MetricCard({
 }
 
 // SystemOverview 仅在管理员页面轮询服务器资源快照。
-export default function SystemOverview() {
+export default function SystemOverview({ user }: { user: AuthUser }) {
   const [status, setStatus] = useState<SystemStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
 
-  // loadSystem 获取当前主机资源信息；失败时保留上次快照供参考。
-  const loadSystem = useCallback(async () => {
+  // readSystem 获取当前主机资源信息；失败时保留上次快照供参考。
+  const readSystem = useCallback(async (signal: AbortSignal) => {
     setLoading(true)
     try {
-      setStatus(await getSystem())
+      const next = await getSystem(signal)
+      if (signal.aborted) return
+      setStatus(next)
       setUpdatedAt(new Date())
       setError('')
     } catch (failure) {
-      setError(getErrorMessage(failure, '服务器状态暂时无法读取'))
+      if (!signal.aborted) setError(getErrorMessage(failure, '服务器状态暂时无法读取'))
     } finally {
-      setLoading(false)
+      if (!signal.aborted) setLoading(false)
     }
   }, [])
 
-  useEffect(() => {
-    void loadSystem()
-    const timer = window.setInterval(() => void loadSystem(), 30_000)
-    return () => window.clearInterval(timer)
-  }, [loadSystem])
+  const loadSystem = usePolling(readSystem, 30_000)
 
   return (
     <section aria-label="服务器状态">
@@ -107,6 +109,8 @@ export default function SystemOverview() {
         </>
       )}
       <BackupStatusCard />
+      <PlatformVersion />
+      {user.role === 'superadmin' && <PlatformDiagnostics />}
     </section>
   )
 }

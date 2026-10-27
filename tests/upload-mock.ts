@@ -7,6 +7,7 @@ type Pending = {
   size: number
   offset: number
   chunkSize: number
+  minChunkSize?: number
   completed: boolean
   expiresAt: string
   input: Record<string, string | number | boolean>
@@ -17,6 +18,8 @@ export type UploadMock = {
   dropResponseOnce: boolean
   dropCompletionOnce: boolean
   publishCount: number
+  transportLimit?: number
+  legacyChunks?: boolean
 }
 
 // mockUploads 模拟服务端已提交偏移；可独立制造分片响应和发布响应丢失。
@@ -34,6 +37,7 @@ export async function mockUploads(route: Route, state: UploadMock, projects: Pro
       size: body.size,
       offset: 0,
       chunkSize: 4 * 1024 ** 2,
+      ...(state.legacyChunks ? {} : { minChunkSize: 64 * 1024 }),
       completed: false,
       expiresAt: new Date(Date.now() + 86400_000).toISOString(),
       input: body,
@@ -50,9 +54,17 @@ export async function mockUploads(route: Route, state: UploadMock, projects: Pro
   if (method === 'GET') return reply(record)
   if (method === 'PATCH') {
     const offset = Number(request.headers()['upload-offset'])
+    if (state.transportLimit && (request.postDataBuffer()?.length ?? 0) > state.transportLimit)
+      return route.abort('connectionfailed')
     if (state.failOffset === offset) return reply({ error: '模拟暂时断网' }, 503)
     if (offset !== record.offset) return reply({ error: '偏移冲突' }, 409)
-    record.offset += request.postDataBuffer()?.length ?? 0
+    const length = request.postDataBuffer()?.length ?? 0
+    if (
+      length < Math.min(record.minChunkSize ?? record.chunkSize, record.size - offset) ||
+      length > Math.min(record.chunkSize, record.size - offset)
+    )
+      return reply({ error: '分片长度无效' }, 400)
+    record.offset += length
     if (state.dropResponseOnce) {
       state.dropResponseOnce = false
       return route.abort('connectionfailed')
