@@ -20,9 +20,16 @@ import {
   type TokenInput,
 } from '../api/deployTokens'
 import { getErrorMessage } from '../lib/format'
+import ProjectAIDeploy from './ProjectAIDeploy'
 
 // ProjectDeployTokens 把自动部署凭据放在项目设置内，默认只允许生成预览。
-export default function ProjectDeployTokens({ slug }: { slug: string }) {
+export default function ProjectDeployTokens({
+  slug,
+  projectId,
+}: {
+  slug: string
+  projectId: string
+}) {
   const [modal, modalContext] = Modal.useModal()
   const [message, messageContext] = antdMessage.useMessage()
   const [form] = Form.useForm<TokenInput>()
@@ -124,16 +131,19 @@ export default function ProjectDeployTokens({ slug }: { slug: string }) {
             让本机脚本、AI 或 GitHub Actions 上传新预览。每个 Token 仅用于本项目，最多保留 10 个。
           </p>
         </div>
-        <Button
-          className="h-11 sm:h-8"
-          disabled={loading || tokens.length >= 10}
-          onClick={() => {
-            setError('')
-            setOpen(true)
-          }}
-        >
-          创建部署 Token
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <ProjectAIDeploy slug={slug} projectId={projectId} />
+          <Button
+            className="h-11 sm:h-8"
+            disabled={loading || tokens.length >= 10}
+            onClick={() => {
+              setError('')
+              setOpen(true)
+            }}
+          >
+            创建部署 Token
+          </Button>
+        </div>
       </div>
       <p className="mb-4 text-xs text-muted">
         <a

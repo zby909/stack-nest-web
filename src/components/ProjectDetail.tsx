@@ -261,7 +261,7 @@ export default function ProjectDetail({
                   </Button>
                 </div>
                 <LazyPanel>
-                  <ProjectDeployTokens key={slug} slug={slug} />
+                  <ProjectDeployTokens key={project.id} slug={slug} projectId={project.id} />
                 </LazyPanel>
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
                   <div>
