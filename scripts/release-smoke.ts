@@ -80,7 +80,7 @@ test('真实发布链路：登录、上传、预览、发布、更新和回退',
     })
     .toBe(8)
   await page.getByPlaceholder('请输入邮件中的验证码').fill(code)
-  await page.getByRole('button', { name: /^登\s*录$/ }).click()
+  await page.getByRole('button', { name: '登录', exact: true }).click()
   await expect(page).toHaveURL(/\/projects$/)
 
   await page.getByRole('button', { name: '＋ 部署静态项目' }).click()
@@ -122,11 +122,30 @@ test('真实发布链路：登录、上传、预览、发布、更新和回退',
     await dialog.locator('input[type=file]').setInputFiles(testFile(2))
     await dialog.getByRole('button', { name: '上传待发布版', exact: true }).click()
     await expect(dialog).not.toBeVisible({ timeout: uploadTimeout })
-    const preview2 = await page
+    let preview2 = await page
       .getByRole('article', { name: '待发布版', exact: true })
       .getByRole('link', { name: '独立预览 ↗' })
       .getAttribute('href')
     expect(preview2).not.toBe(preview1)
+    await checkSite(site, preview2!, 2)
+    await checkSite(site, formal.href, 1)
+
+    // 更新指定草稿走真实上传接口，新预览可用后旧地址失效，正式版保持原样。
+    const retiredPreview = preview2!
+    await page
+      .getByRole('article', { name: '待发布版', exact: true })
+      .getByRole('button', { name: '更新待发布版', exact: true })
+      .click()
+    dialog = page.getByRole('dialog')
+    await dialog.locator('input[type=file]').setInputFiles(testFile(2))
+    await dialog.getByRole('button', { name: '更新待发布版', exact: true }).click()
+    await expect(dialog).not.toBeVisible({ timeout: uploadTimeout })
+    preview2 = await page
+      .getByRole('article', { name: '待发布版', exact: true })
+      .getByRole('link', { name: '独立预览 ↗' })
+      .getAttribute('href')
+    expect(preview2).not.toBe(retiredPreview)
+    expect((await site.goto(retiredPreview))?.status()).toBe(404)
     await checkSite(site, preview2!, 2)
     await checkSite(site, formal.href, 1)
     await publish(page)

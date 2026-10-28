@@ -20,6 +20,7 @@ function Login({ onLogin }: LoginProps) {
   const [now, setNow] = useState(() => Date.now())
   const emailKey = email.trim().toLowerCase()
   const remaining = Math.max(0, Math.ceil(((resendAt[emailKey] ?? 0) - now) / 1000))
+  const submitLabel = sent ? '登录' : remaining > 0 ? `${remaining} 秒后重发` : '发送验证码'
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
@@ -122,10 +123,12 @@ function Login({ onLogin }: LoginProps) {
             type="primary"
             htmlType="submit"
             size="large"
+            aria-label={submitLabel}
+            aria-busy={busy}
             loading={busy}
             disabled={!email.trim() || (sent ? code.length !== 8 : remaining > 0)}
           >
-            {sent ? '登录' : remaining > 0 ? `${remaining} 秒后重发` : '发送验证码'}
+            {submitLabel}
           </Button>
           {sent && (
             <div className="mt-3 flex flex-wrap justify-between gap-2 text-xs">
