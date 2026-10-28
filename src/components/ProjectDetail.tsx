@@ -119,10 +119,10 @@ export default function ProjectDetail({
               <Button
                 className="h-11 sm:h-8"
                 type="primary"
-                disabled={!canUpload || !!project.draft}
+                disabled={!canUpload}
                 onClick={() => onAction(project, 'update')}
               >
-                上传新版本
+                {project.draft ? '更新待发布版' : '上传新版本'}
               </Button>
             </div>
           </header>
@@ -210,6 +210,8 @@ export default function ProjectDetail({
                 project={project}
                 onChanged={changed}
                 onRollback={() => onAction(project, 'rollback')}
+                onUpdate={() => onAction(project, 'update')}
+                canUpload={canUpload}
               />
             )}
             {tab === 'files' && (

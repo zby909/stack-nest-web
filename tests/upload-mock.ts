@@ -32,6 +32,15 @@ export async function mockUploads(route: Route, state: UploadMock, projects: Pro
     route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(value) })
   if (path === '/api/uploads' && method === 'POST') {
     const body = request.postDataJSON()
+    const target = projects.find((item) => item.slug === body.slug)
+    if (!state.records.has(body.id) && body.kind === 'update') {
+      if (!target) return reply({ error: '项目不存在' }, 404)
+      if (
+        (target.deployments?.[0]?.id ?? '') !== body.expectedId ||
+        (target.draft?.id ?? '') !== (body.replaceDraftId ?? '')
+      )
+        return reply({ error: '项目版本已发生变化，请刷新后重试' }, 409)
+    }
     const record = state.records.get(body.id) ?? {
       id: body.id,
       size: body.size,
@@ -86,13 +95,21 @@ export async function mockUploads(route: Route, state: UploadMock, projects: Pro
         projects.push(project)
       }
       if (!project) return reply({ error: '项目不存在' }, 404)
+      if (
+        record.input.kind === 'update' &&
+        ((project.deployments?.[0]?.id ?? '') !== record.input.expectedId ||
+          (project.draft?.id ?? '') !== (record.input.replaceDraftId ?? ''))
+      )
+        return reply({ error: '项目版本已发生变化，请刷新后重试' }, 409)
       const version = {
-        id: 'updated-version',
+        id: record.input.replaceDraftId ? 'dep-' + record.id : 'updated-version',
         fileName: String(record.input.fileName),
         status: record.input.preview ? 'draft' : 'succeeded',
         createdAt: date,
         notes: String(record.input.notes ?? ''),
-        previewUrl: 'https://stack-nest--preview.example.com/',
+        previewUrl: record.input.replaceDraftId
+          ? `https://stack-nest--dep-${record.id}.example.com/`
+          : 'https://stack-nest--preview.example.com/',
         files: { bytes: 8192, count: 4 },
       }
       if (record.input.preview) {

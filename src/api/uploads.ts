@@ -5,6 +5,7 @@ import { forgetRecovery, rememberRecovery, type UploadRecovery } from '../lib/up
 import { getErrorMessage } from '../lib/format'
 
 export type UploadTarget = {
+  replaceDraftId?: string
   preview?: boolean
   notes?: string
   kind: 'create' | 'update'
@@ -147,6 +148,7 @@ export async function uploadProject(
     description: target.description?.trim() ?? '',
     slug: target.slug ?? '',
     expectedId: target.expectedId ?? '',
+    ...(target.replaceDraftId ? { replaceDraftId: target.replaceDraftId } : {}),
     fileName: file.name,
     size: file.size,
     sha256,

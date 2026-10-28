@@ -10,10 +10,14 @@ export default function ProjectVersions({
   project,
   onChanged,
   onRollback,
+  onUpdate,
+  canUpload,
 }: {
   project: Project
   onChanged: (project: Project) => void
   onRollback: () => void
+  onUpdate: () => void
+  canUpload: boolean
 }) {
   const [confirmation, setConfirmation] = useState<{
     action: 'publish' | 'discard'
@@ -90,6 +94,9 @@ export default function ProjectVersions({
                 </Button>
                 {version.status === 'draft' ? (
                   <>
+                    <Button className="h-11 sm:h-8" disabled={!canUpload} onClick={onUpdate}>
+                      更新待发布版
+                    </Button>
                     <Button
                       type="primary"
                       className="h-11 sm:h-8"

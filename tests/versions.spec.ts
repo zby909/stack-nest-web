@@ -50,7 +50,7 @@ test('预览草稿独立保留，确认发布后才替换正式版', async ({ pa
     'href',
     project.draft.previewUrl!,
   )
-  await expect(page.getByRole('button', { name: '上传新版本' })).toBeDisabled()
+  await expect(draft.getByRole('button', { name: '更新待发布版' })).toBeEnabled()
   await draft.getByRole('button', { name: '发布此版本' }).click()
   expect(project.deployments?.[0].id).toBe('current-version')
   await page

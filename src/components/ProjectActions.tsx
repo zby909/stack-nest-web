@@ -37,10 +37,10 @@ export default function ProjectActions({
       <Button
         className="h-11 sm:h-8"
         size="small"
-        disabled={!canUpload || !!project.draft}
+        disabled={!canUpload}
         onClick={() => onRelease('update')}
       >
-        更新
+        {project.draft ? '更新草稿' : '更新'}
       </Button>
       <Dropdown
         trigger={['click']}

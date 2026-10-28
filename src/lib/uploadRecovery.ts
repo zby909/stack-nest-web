@@ -49,7 +49,7 @@ function validRecovery(value: unknown, userId: string): value is UploadRecovery 
     Number.isFinite(record.savedAt) &&
     !!target &&
     (target.kind === 'create' || target.kind === 'update') &&
-    ['name', 'description', 'slug', 'notes', 'expectedId'].every(
+    ['name', 'description', 'slug', 'notes', 'expectedId', 'replaceDraftId'].every(
       (key) =>
         target[key as keyof UploadTarget] === undefined ||
         typeof target[key as keyof UploadTarget] === 'string',
@@ -120,7 +120,8 @@ export function recoverTarget(record: UploadRecovery, project: import('../types/
     project.deployments?.some((version) => version.id === ownVersion)
   if (
     !alreadyStored &&
-    ((project.deployments?.[0]?.id ?? '') !== record.target.expectedId || project.draft)
+    ((project.deployments?.[0]?.id ?? '') !== record.target.expectedId ||
+      (project.draft?.id ?? '') !== (record.target.replaceDraftId ?? ''))
   )
     throw new Error('项目版本已发生变化，请放弃旧上传后重新上传新版本。')
 }

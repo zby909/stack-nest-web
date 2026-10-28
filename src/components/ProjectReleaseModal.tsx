@@ -31,7 +31,12 @@ export default function ProjectReleaseModal({
   const [busy, setBusy] = useState(false)
   const upload = useResumableUpload(userId)
   const [error, setError] = useState('')
-  const [notes, setNotes] = useState(recovery?.record.target.notes ?? '')
+  const replaceDraftId = recovery
+    ? (recovery.record.target.replaceDraftId ?? '')
+    : (project.draft?.id ?? '')
+  const [notes, setNotes] = useState(
+    recovery?.record.target.notes ?? (replaceDraftId ? (project.draft?.notes ?? '') : ''),
+  )
   const current = project.deployments?.[0]
   const previous = project.deployments?.[1]
   const revert = mode === 'rollback'
@@ -66,6 +71,7 @@ export default function ProjectReleaseModal({
               notes,
               slug: project.slug,
               expectedId: recovery?.record.target.expectedId ?? current?.id ?? '',
+              ...(replaceDraftId ? { replaceDraftId } : {}),
             })
         if (!uploaded) return
         result = uploaded
@@ -84,7 +90,7 @@ export default function ProjectReleaseModal({
       centered
       title={
         <span className="block pr-7 break-all">
-          {revert ? '回退' : '更新'}项目 “{project.name}”
+          {revert ? '回退项目' : replaceDraftId ? '更新待发布版' : '更新项目'} “{project.name}”
         </span>
       }
       okText={
@@ -94,7 +100,9 @@ export default function ProjectReleaseModal({
             ? '确认上传结果'
             : upload.hasSession
               ? '继续上传'
-              : '上传待发布版'
+              : replaceDraftId
+                ? '更新待发布版'
+                : '上传待发布版'
       }
       cancelText="取消"
       onOk={() => void submit()}
@@ -105,7 +113,7 @@ export default function ProjectReleaseModal({
           busy ||
           upload.busy ||
           upload.discarding ||
-          (!upload.readyToComplete && !!project.draft) ||
+          (!upload.readyToComplete && !!project.draft && (revert || !replaceDraftId)) ||
           (revert ? !previous : !file && !upload.readyToComplete),
         className: 'h-11 sm:h-8',
       }}
@@ -118,8 +126,20 @@ export default function ProjectReleaseModal({
       mask={{ closable: !busy && !upload.busy && !upload.discarding }}
     >
       <p className="mb-4 text-sm text-muted">项目网址和归属保持不变。</p>
+      {!revert && replaceDraftId && (
+        <Alert
+          className="mb-4"
+          type="info"
+          showIcon
+          title="新文件校验成功后替换此待发布版"
+          description="失败时保留旧草稿；成功后生成新预览地址，旧预览失效。正式站点不受影响。"
+        />
+      )}
       <div className="mb-4 space-y-2 rounded-lg bg-subtle p-3 text-sm">
         <p className="break-all">当前版本：{current?.fileName ?? '尚未发布'}</p>
+        {!revert && replaceDraftId && project.draft && (
+          <p className="break-all">待更新草稿：{project.draft.fileName}</p>
+        )}
         {previous && (
           <p className="break-all text-muted">
             上一版：{previous.fileName} · {new Date(previous.createdAt).toLocaleString('zh-CN')}
