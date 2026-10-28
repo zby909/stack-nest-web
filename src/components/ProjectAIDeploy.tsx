@@ -4,7 +4,6 @@ import { downloadDeploySkill } from '../api/deployTools'
 import { getErrorMessage } from '../lib/format'
 
 const releasesURL = 'https://github.com/zby909/stack-nest-server/releases'
-const skillURL = 'https://github.com/zby909/stack-nest-server/tree/main/skills/stacknest-deploy'
 
 // ProjectAIDeploy 提供通用工具下载和本项目的部署说明，不接触部署 Token 原文。
 export default function ProjectAIDeploy({ slug, projectId }: { slug: string; projectId: string }) {
@@ -15,17 +14,13 @@ export default function ProjectAIDeploy({ slug, projectId }: { slug: string; pro
   const controller = useRef<AbortController | null>(null)
   const [message, messageContext] = antdMessage.useMessage()
   useEffect(() => () => controller.current?.abort(), [])
-  const instructions = `使用 stacknest-deploy Skill，把我指定的 HTML / HTM / ZIP / RAR 上传到已有静态项目，先生成预览并返回链接，本次不正式发布。
+  const instructions = `使用 stacknest-deploy Skill 上传我指定的文件，生成预览并返回链接，暂不正式发布。
 
-管理端地址：${window.location.origin}
-目标项目标识：${slug}
-目标项目 ID：${projectId}
+后台：${window.location.origin}
+项目：${slug}
+项目 ID：${projectId}
 
-先检查已有配置，调用 CLI 的 status，通过 Token 自动识别项目，并核对返回的 id、slug 与上述目标一致；一致即可继续，不用再问项目名称或 slug。不一致时停止，不向其他项目上传。
-只询问缺失的 Token 文件路径和 CLI 路径；未安装 CLI 时可协助从官方发布页下载对应系统、架构的版本并校验 SHA-256。Token 从私有文件或已有环境变量读取，不输出内容，不写入聊天、Skill 或 Git。
-Skill 下载后将 stacknest-deploy 整个目录安装到 AI 工具支持的 Skill 目录；已安装则复用。通用 Skill：${skillURL}
-CLI 下载（v1.0.0-rc.2 或更新的兼容版本）：${releasesURL}
-使用默认续传记录；已有其他草稿或版本冲突时停止，不自动丢弃或覆盖。保留这次上传返回的 draftId 和 expectedId，供之后确认发布该预览时使用。`
+复用已有配置，只询问缺失项。先用 Token 核对项目，不符或遇到版本冲突时停止；不要输出 Token。其余按 Skill 流程执行。`
 
   // close 关闭弹窗时取消尚未完成的下载请求。
   const close = () => {
@@ -93,18 +88,17 @@ CLI 下载（v1.0.0-rc.2 或更新的兼容版本）：${releasesURL}
         }
       >
         <p className="mb-4 text-sm leading-relaxed text-muted">
-          让能操作本机文件和命令行的 AI 上传成品。默认先生成预览，确认后再发布到原网址。
+          让 AI 上传文件，先预览，确认后再发布。
         </p>
         <ol className="mb-5 space-y-4 text-sm">
           <li>
-            <p className="font-medium">1. 准备部署 Token</p>
+            <p className="font-medium">1. 准备 Token</p>
             <p className="mt-1 leading-relaxed text-muted">
-              在当前页创建本项目的 Token，保存到仓库外的私有文件，只把文件路径告诉 AI。 已有 Token
-              可复用；需要 AI 正式发布时再授予相应权限。
+              创建或复用本项目的 Token，保存到仓库外的私有文件。只把文件路径告诉 AI。
             </p>
           </li>
           <li>
-            <p className="font-medium">2. 安装工具（首次使用）</p>
+            <p className="font-medium">2. 首次安装</p>
             <div className="my-2 flex flex-wrap gap-2">
               <Button loading={downloading} onClick={() => void download()}>
                 下载 Skill
@@ -114,25 +108,26 @@ CLI 下载（v1.0.0-rc.2 或更新的兼容版本）：${releasesURL}
               </Button>
             </div>
             <p className="leading-relaxed text-muted">
-              Skill 解压后，将 stacknest-deploy 整个目录放入 AI 工具的 Skill 目录并重新加载。 CLI
-              按电脑系统和架构选择并校验配套 .sha256；也可以让 AI 协助安装。已安装可跳过。
+              将 Skill 解压到 AI 工具的 Skill 目录并重新加载。CLI 可让 AI 协助安装；已配置可跳过。
             </p>
             {downloadError && (
               <Alert className="mt-2" type="error" showIcon title={downloadError} />
             )}
           </li>
           <li>
-            <p className="mb-2 font-medium">3. 复制说明，并告诉 AI 要上传哪个文件</p>
+            <p className="mb-2 font-medium">3. 复制给 AI</p>
+            <p className="mb-2 leading-relaxed text-muted">
+              粘贴以下说明，再告诉 AI 要上传哪个文件，例如「旅行攻略.html」。
+            </p>
             <Input.TextArea
               aria-label="AI 部署说明"
               value={instructions}
               readOnly
-              autoSize={{ minRows: 6, maxRows: 10 }}
+              autoSize
               onFocus={(event) => event.target.select()}
             />
             <p className="mt-2 text-xs leading-relaxed text-muted">
-              已填入当前后台地址和项目标识，不含 Token。AI
-              须能访问此地址；本机隧道地址只能在同一台电脑使用。
+              已填入后台和项目信息，不含 Token。请在能访问此后台的电脑上使用。
             </p>
           </li>
         </ol>
