@@ -10,6 +10,7 @@ import ProjectUsage from './ProjectUsage'
 import ProjectVersions from './ProjectVersions'
 
 const ActivityLog = lazy(() => import('./ActivityLog'))
+const ProjectDeployTokens = lazy(() => import('./ProjectDeployTokens'))
 const ProjectFilesPanel = lazy(() =>
   import('./ProjectFilesModal').then((module) => ({ default: module.ProjectFilesPanel })),
 )
@@ -259,6 +260,9 @@ export default function ProjectDetail({
                     {project.status === 'paused' ? '恢复访问' : '暂停访问'}
                   </Button>
                 </div>
+                <LazyPanel>
+                  <ProjectDeployTokens key={slug} slug={slug} />
+                </LazyPanel>
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
                   <div>
                     <h3 className="text-sm font-medium">删除项目</h3>

@@ -56,6 +56,10 @@ export type ActivityEvent = {
     | 'app-limits'
     | 'user-add'
     | 'user-role'
+    | 'token-create'
+    | 'token-revoke'
+  tokenName?: string
+  tokenId?: string
   actor: string
   slug?: string
   fileName?: string

@@ -112,6 +112,8 @@ export const test = base.extend<{ api: MockAPI }>({
             headers: { 'X-Request-ID': 'regression-request' },
             body: JSON.stringify(data),
           })
+        if (/^\/api\/projects\/[^/]+\/deploy-tokens$/.test(path) && method === 'GET')
+          return reply({ tokens: [] })
         if (path === '/api/network') {
           if (state.role !== 'superadmin')
             return reply({ error: '仅超级管理员可配置容器网络' }, 403)

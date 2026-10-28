@@ -25,6 +25,8 @@ const actions: Record<ActivityEvent['action'], string> = {
   'app-limits': '应用资源配置',
   'user-add': '添加邮箱',
   'user-role': '调整用户角色',
+  'token-create': '创建部署 Token',
+  'token-revoke': '撤销部署 Token',
 }
 type Filters = {
   q?: string
@@ -222,6 +224,7 @@ export default function ActivityLog({ slug }: { slug?: string }) {
                   <p className="mt-2 text-sm break-all">{event.message}</p>
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs break-all text-muted">
                     <span>操作人：{event.actor || '未知'}</span>
+                    {event.tokenName && <span>部署 Token：{event.tokenName}</span>}
                     <span>耗时：{(event.durationMs / 1000).toFixed(2)} 秒</span>
                     {(event.action === 'upload' || event.action === 'update') && (
                       <>
