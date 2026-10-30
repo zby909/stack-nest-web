@@ -118,6 +118,25 @@ async function installAPI(
       state.writes.push({ path, body })
       if (path.endsWith('/actions')) {
         const next = structuredClone(state.apps[0])
+        if (body.action === 'cancel') {
+          if (
+            body.generation !== next.app.generation ||
+            !(next.progress?.canCancel || next.app.status === 'pending')
+          )
+            return reply({ error: '部署已进入容器切换阶段，无法取消，请等待完成' }, 409)
+          next.app.status = 'error'
+          next.app.action = ''
+          next.app.canceled = true
+          next.app.error = '已取消本次部署'
+          next.progress = {
+            generation: next.app.generation,
+            stage: 'cancelled',
+            canCancel: false,
+            updatedAt: next.app.updatedAt,
+          }
+          state.apps = [next]
+          return reply(next, 202)
+        }
         next.app.generation += 1
         next.app.status = 'pending'
         next.app.action = body.action as string
@@ -147,6 +166,81 @@ async function installAPI(
   })
   return state
 }
+
+// 取消需要确认，携带当前代次，结束后保留旧版运行状态并允许编辑镜像地址。
+test('取消镜像拉取后可以重新编辑应用', async ({ page }) => {
+  const state = await installAPI(page, { user: true })
+  state.apps[0].app.status = 'deploying'
+  state.apps[0].app.action = 'deploy'
+  state.apps[0].progress = {
+    generation: 1,
+    stage: 'pulling',
+    canCancel: true,
+    downloadedBytes: 10 * 1024 * 1024,
+    totalBytes: 300 * 1024 * 1024,
+    updatedAt: initial.app.updatedAt,
+  }
+  await page.goto('/apps')
+  const article = page.getByRole('article', { name: 'Small HTTP' })
+  await expect(article.getByText('拉取镜像', { exact: true })).toBeVisible()
+  await expect(article.getByRole('button', { name: /^更\s*新$/ })).toBeDisabled()
+  await article.getByRole('button', { name: '取消部署', exact: true }).click()
+  let dialog = page.getByRole('dialog')
+  await dialog.getByRole('button', { name: '继续部署', exact: true }).click()
+  expect(state.writes).toHaveLength(0)
+  await article.getByRole('button', { name: '取消部署', exact: true }).click()
+  dialog = page.getByRole('dialog')
+  await expect(dialog.getByText(/已运行的版本会继续提供服务/)).toBeVisible()
+  await page.screenshot({
+    path: `test-results/cancel-deploy-${test.info().project.name}.png`,
+    fullPage: true,
+    animations: 'disabled',
+  })
+  await dialog.getByRole('button', { name: '确认取消部署', exact: true }).click()
+  await expect(dialog).not.toBeVisible()
+  expect(state.writes[0].body).toEqual({ action: 'cancel', generation: 1 })
+  await expect(article.getByText('已取消本次部署', { exact: true })).toBeVisible()
+  await expect(article.getByRole('link', { name: '打开应用 ↗', exact: true })).toHaveAttribute(
+    'href',
+    initial.app.url,
+  )
+  await expect(article.getByRole('button', { name: /^更\s*新$/ })).toBeEnabled()
+  await article.getByRole('button', { name: /^更\s*新$/ }).click()
+  await expect(page.getByRole('dialog').getByLabel('镜像地址', { exact: true })).toHaveValue(
+    initial.app.image,
+  )
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
+// 容器切换时关闭取消入口；旧弹窗的请求被拒绝后仍显示新任务。
+test('取消入口遵守切换阶段及版本冲突', async ({ page }) => {
+  const state = await installAPI(page)
+  state.apps[0].app.status = 'deploying'
+  state.apps[0].app.action = 'deploy'
+  state.apps[0].progress = {
+    generation: 1,
+    stage: 'creating',
+    canCancel: false,
+    updatedAt: initial.app.updatedAt,
+  }
+  await page.goto('/apps')
+  const article = page.getByRole('article', { name: 'Small HTTP' })
+  await expect(article.getByRole('button', { name: '取消部署', exact: true })).toBeDisabled()
+  state.apps[0].progress.stage = 'pulling'
+  state.apps[0].progress.canCancel = true
+  await page.getByRole('button', { name: /^刷\s*新$/ }).click()
+  await article.getByRole('button', { name: '取消部署', exact: true }).click()
+  state.apps[0].app.generation = 2
+  state.apps[0].progress.generation = 2
+  const dialog = page.getByRole('dialog')
+  await dialog.getByRole('button', { name: '确认取消部署', exact: true }).click()
+  await expect(
+    page.getByText('部署已进入容器切换阶段，无法取消，请等待完成', { exact: true }),
+  ).toBeVisible()
+  await expect(dialog).toBeVisible()
+  expect(state.apps[0].app.status).toBe('deploying')
+  expect(state.writes[0].body).toEqual({ action: 'cancel', generation: 1 })
+})
 
 // 普通用户也能部署；界面提交真实配置，编辑不会回显已保存的秘密。
 test('部署与编辑应用保留敏感配置', async ({ page }) => {

@@ -16,12 +16,14 @@ export type ContainerApp = {
   status: 'pending' | 'deploying' | 'ready' | 'stopped' | 'error'
   action?: string
   error?: string
+  canceled?: boolean
   imageId?: string
   createdAt: string
   updatedAt: string
   url: string
 }
 export type AppProgress = {
+  canCancel?: boolean
   generation: number
   stage: string
   failedStage?: string
@@ -86,4 +88,4 @@ export type AppInput = {
   registry?: { username: string; password: string }
   generation?: number
 }
-export type AppAction = 'start' | 'stop' | 'restart' | 'delete'
+export type AppAction = 'start' | 'stop' | 'restart' | 'delete' | 'cancel'

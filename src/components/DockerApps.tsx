@@ -27,6 +27,7 @@ const actionLabel: Record<AppAction, string> = {
   stop: '停止',
   restart: '重启',
   delete: '删除',
+  cancel: '取消部署',
 }
 
 // DockerApps 提供单容器 HTTP 应用管理；轮询只在可见页面执行。
@@ -46,6 +47,7 @@ export default function DockerApps({
   const [editor, setEditor] = useState<{ target: AppView | null } | null>(null)
   const [logs, setLogs] = useState<AppView | null>(null)
   const [deleting, setDeleting] = useState<AppView | null>(null)
+  const [cancelling, setCancelling] = useState<AppView | null>(null)
   const [busyId, setBusyId] = useState('')
   const [showLimits, setShowLimits] = useState(false)
 
@@ -112,6 +114,7 @@ export default function DockerApps({
         setDeleting(null)
         if (detailId) navigate('/apps')
       }
+      if (action === 'cancel') setCancelling(null)
       setRefresh((value) => value + 1)
     } catch (failure) {
       setError(getErrorMessage(failure, `${actionLabel[action]}应用失败`))
@@ -256,7 +259,7 @@ export default function DockerApps({
                         ? 'processing'
                         : running
                           ? 'success'
-                          : app.status === 'error'
+                          : app.status === 'error' && !app.canceled
                             ? 'error'
                             : 'default'
                     }
@@ -267,7 +270,9 @@ export default function DockerApps({
                         ? '运行中'
                         : runtime
                           ? '已停止'
-                          : phase[app.status]}
+                          : app.canceled
+                            ? '部署已取消'
+                            : phase[app.status]}
                   </Tag>
                 </div>
                 <div className="mb-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted">
@@ -308,7 +313,14 @@ export default function DockerApps({
                     </div>
                   </dl>
                 )}
-                {app.error && <Alert className="mb-3" type="error" showIcon title={app.error} />}
+                {app.error && (
+                  <Alert
+                    className="mb-3"
+                    type={app.canceled ? 'info' : 'error'}
+                    showIcon
+                    title={app.error}
+                  />
+                )}
                 {runtime?.oomKilled && (
                   <Alert
                     className="mb-3"
@@ -318,6 +330,27 @@ export default function DockerApps({
                   />
                 )}
                 <div className="flex flex-wrap gap-2">
+                  {pending && app.action === 'deploy' && (
+                    <Tooltip
+                      title={
+                        view.progress?.canCancel || app.status === 'pending'
+                          ? '取消后可修改镜像地址重新部署'
+                          : '已进入容器切换或正在结束任务，请等待完成'
+                      }
+                    >
+                      <Button
+                        danger
+                        disabled={
+                          busyId === app.id ||
+                          !result?.available ||
+                          !(view.progress?.canCancel || app.status === 'pending')
+                        }
+                        onClick={() => setCancelling(view)}
+                      >
+                        取消部署
+                      </Button>
+                    </Tooltip>
+                  )}
                   <Button
                     href={app.url}
                     target="_blank"
@@ -365,6 +398,24 @@ export default function DockerApps({
         />
       )}
       {logs && <DockerAppLogs target={logs} onClose={() => setLogs(null)} />}
+      {cancelling && (
+        <Modal
+          open
+          title={`取消部署 ${cancelling.app.name}？`}
+          okText="确认取消部署"
+          cancelText="继续部署"
+          okButtonProps={{ danger: true }}
+          confirmLoading={busyId === cancelling.app.id}
+          onOk={() => void act(cancelling, 'cancel')}
+          onCancel={() => {
+            if (!busyId) setCancelling(null)
+          }}
+        >
+          <p className="text-sm leading-relaxed">
+            停止本次排队或镜像拉取，之后可以修改配置重新部署。已运行的版本会继续提供服务。
+          </p>
+        </Modal>
+      )}
       {deleting && (
         <Modal
           open

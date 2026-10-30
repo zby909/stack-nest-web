@@ -16,6 +16,8 @@ const stages: Record<string, string> = {
   deleting: '删除容器及数据',
   completed: '操作已完成，正在保存结果',
   failed: '操作失败',
+  cancelling: '正在取消部署',
+  cancelled: '部署已取消',
 }
 
 // DockerAppProgress 展示实际任务阶段；镜像层总量未知时不伪造百分比。
@@ -52,7 +54,9 @@ export default function DockerAppProgress({ view }: { view: AppView }) {
       )}
       {pending && (
         <p className="mt-2 text-xs text-muted">
-          任务在服务器执行，关闭页面后继续。镜像下载量不代表整个部署的完成比例。
+          {current?.stage === 'cancelling'
+            ? '正在结束本次部署，完成后可修改配置。'
+            : '任务在服务器执行，关闭页面后继续。镜像下载量不代表整个部署的完成比例。'}
         </p>
       )}
     </div>
