@@ -45,7 +45,7 @@ export default function DockerApps({
   const [refresh, setRefresh] = useState(0)
   const [query, setQuery] = useState('')
   const [editor, setEditor] = useState<{ target: AppView | null } | null>(null)
-  const [logs, setLogs] = useState<AppView | null>(null)
+  const [logs, setLogs] = useState<{ view: AppView; kind: 'runtime' | 'deployment' } | null>(null)
   const [deleting, setDeleting] = useState<AppView | null>(null)
   const [cancelling, setCancelling] = useState<AppView | null>(null)
   const [busyId, setBusyId] = useState('')
@@ -359,7 +359,13 @@ export default function DockerApps({
                   >
                     打开应用 ↗
                   </Button>
-                  <Button onClick={() => setLogs(view)} disabled={!runtime?.containerId}>
+                  {app.error && !app.canceled && (
+                    <Button onClick={() => setLogs({ view, kind: 'deployment' })}>失败详情</Button>
+                  )}
+                  <Button
+                    onClick={() => setLogs({ view, kind: 'runtime' })}
+                    disabled={!runtime?.containerId}
+                  >
                     日志
                   </Button>
                   <Button onClick={() => setEditor({ target: view })} disabled={disabled}>
@@ -397,7 +403,7 @@ export default function DockerApps({
           onSaved={() => setRefresh((value) => value + 1)}
         />
       )}
-      {logs && <DockerAppLogs target={logs} onClose={() => setLogs(null)} />}
+      {logs && <DockerAppLogs target={logs.view} kind={logs.kind} onClose={() => setLogs(null)} />}
       {cancelling && (
         <Modal
           open

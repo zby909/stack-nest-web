@@ -33,6 +33,16 @@ export async function appLogs(id: string, signal?: AbortSignal) {
   return (await http.get<{ text: string }>(`/api/apps/${id}/logs`, { signal })).data.text
 }
 
+// appDeploymentLogs 查询确切代次的失败快照，避免旧弹窗误显示新任务输出。
+export async function appDeploymentLogs(id: string, generation: number, signal?: AbortSignal) {
+  return (
+    await http.get<{ text: string }>(`/api/apps/${id}/deployment-logs`, {
+      signal,
+      params: { generation },
+    })
+  ).data.text
+}
+
 // appLimits 只有超管可读取全实例预留量和可配置预算上限。
 export async function appLimits(signal?: AbortSignal) {
   return (await http.get<AppLimitsView>('/api/apps/limits', { signal })).data

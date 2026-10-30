@@ -103,6 +103,14 @@ async function installAPI(
       state.logReads++
       return reply({ text: state.logText })
     }
+    if (path.endsWith('/deployment-logs')) {
+      const generation = Number(new URL(request.url()).searchParams.get('generation'))
+      if (generation !== state.apps[0]?.app.generation)
+        return reply({ error: '部署任务已更新，请刷新后重试' }, 409)
+      return reply({
+        text: '容器状态：restarting\n重启次数：7\n启动日志：\nBOOTSTRAP_ADMIN_PASSWORD 必须是 12—128 位密码\n[已隐藏]',
+      })
+    }
     if (method === 'GET' && path.startsWith('/api/apps/')) {
       const item = state.apps.find((view) => path === `/api/apps/${view.app.id}`)
       return item
@@ -166,6 +174,35 @@ async function installAPI(
   })
   return state
 }
+
+// 候选容器已清理时仍能读取独立失败详情，旧版本继续运行时两种日志入口分别保留。
+test('失败详情不依赖候选容器存活', async ({ page }) => {
+  const state = await installAPI(page)
+  state.apps[0].app.status = 'error'
+  state.apps[0].app.error = '容器反复重启（7 次），未通过就绪检查，请查看失败详情'
+  state.apps[0].runtime = undefined
+  await page.goto('/apps')
+  const article = page.getByRole('article', { name: 'Small HTTP' })
+  await expect(article.getByRole('button', { name: /^日\s*志$/ })).toBeDisabled()
+  await article.getByRole('button', { name: '失败详情', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByLabel('失败详情内容')).toContainText(
+    'BOOTSTRAP_ADMIN_PASSWORD 必须是 12—128 位密码',
+  )
+  await expect(dialog.getByLabel('失败详情内容')).toContainText('重启次数：7')
+  await expect(dialog.getByRole('checkbox', { name: '自动刷新' })).not.toBeChecked()
+  await page.screenshot({
+    path: `test-results/deployment-failure-${test.info().project.name}.png`,
+    fullPage: true,
+    animations: 'disabled',
+  })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await dialog.getByRole('button', { name: '关闭', exact: true }).click()
+  state.apps[0].runtime = structuredClone(initial.runtime)
+  await page.getByRole('button', { name: /^刷\s*新$/ }).click()
+  await expect(article.getByRole('button', { name: /^日\s*志$/ })).toBeEnabled()
+  await expect(article.getByRole('button', { name: '失败详情', exact: true })).toBeEnabled()
+})
 
 // 取消需要确认，携带当前代次，结束后保留旧版运行状态并允许编辑镜像地址。
 test('取消镜像拉取后可以重新编辑应用', async ({ page }) => {

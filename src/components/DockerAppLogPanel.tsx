@@ -1,15 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
 import { Alert, Button, Checkbox, Input, Spin } from 'antd'
-import { appLogs } from '../api/apps'
+import { appLogs, appDeploymentLogs } from '../api/apps'
 import { getErrorMessage } from '../lib/format'
 
 // DockerAppLogPanel 只在可见页面串行刷新，搜索和跟随不改变日志内容或执行其中的代码。
-export default function DockerAppLogPanel({ id }: { id: string }) {
+export default function DockerAppLogPanel({
+  id,
+  generation,
+  kind = 'runtime',
+}: {
+  id: string
+  generation?: number
+  kind?: 'runtime' | 'deployment'
+}) {
   const [text, setText] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [refresh, setRefresh] = useState(0)
-  const [automatic, setAutomatic] = useState(true)
+  const [automatic, setAutomatic] = useState(kind === 'runtime')
   const [follow, setFollow] = useState(true)
   const [query, setQuery] = useState('')
   const [updated, setUpdated] = useState('')
@@ -22,7 +30,12 @@ export default function DockerAppLogPanel({ id }: { id: string }) {
       if (!document.hidden) {
         setLoading(true)
         try {
-          const next = await appLogs(id, controller.signal)
+          if (kind === 'deployment' && !generation)
+            throw new Error('无法确定任务代次，请刷新后重试')
+          const next =
+            kind === 'deployment'
+              ? await appDeploymentLogs(id, generation!, controller.signal)
+              : await appLogs(id, controller.signal)
           if (!controller.signal.aborted) {
             setText(next)
             setError('')
@@ -41,7 +54,7 @@ export default function DockerAppLogPanel({ id }: { id: string }) {
       controller.abort()
       clearTimeout(timer)
     }
-  }, [id, refresh, automatic])
+  }, [id, generation, kind, refresh, automatic])
   const lines = query.trim()
     ? text
         .split('\n')
@@ -54,12 +67,14 @@ export default function DockerAppLogPanel({ id }: { id: string }) {
   return (
     <div>
       <p className="mb-3 text-xs leading-relaxed text-muted">
-        最近 200 行，最多 256 KiB；搜索仅针对当前快照。配置中的敏感值会被隐藏，自动刷新间隔 5 秒。
+        {kind === 'deployment'
+          ? '候选容器清理前保存的状态与启动日志，最多 256 KiB。仅保留最近一次失败，配置中的敏感值会被隐藏。'
+          : '最近 200 行，最多 256 KiB；搜索仅针对当前快照。配置中的敏感值会被隐藏，自动刷新间隔 5 秒。'}
       </p>
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <Input
           className="min-w-40 flex-1"
-          aria-label="搜索运行日志"
+          aria-label={kind === 'deployment' ? '搜索失败详情' : '搜索运行日志'}
           placeholder="搜索当前日志…"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -89,7 +104,7 @@ export default function DockerAppLogPanel({ id }: { id: string }) {
       ) : (
         <pre
           ref={output}
-          aria-label="运行日志内容"
+          aria-label={kind === 'deployment' ? '失败详情内容' : '运行日志内容'}
           tabIndex={0}
           onScroll={(event) => {
             const element = event.currentTarget
