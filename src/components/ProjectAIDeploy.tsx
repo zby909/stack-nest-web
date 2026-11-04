@@ -5,8 +5,14 @@ import { getErrorMessage } from '../lib/format'
 
 const releasesURL = 'https://github.com/zby909/stack-nest-server/releases'
 
-// ProjectAIDeploy 提供通用工具下载和本项目的部署说明，不接触部署 Token 原文。
-export default function ProjectAIDeploy({ slug, projectId }: { slug: string; projectId: string }) {
+type DeploymentTarget =
+  | { kind?: 'project'; slug: string; projectId: string }
+  | { kind: 'app'; slug: string; appId: string }
+
+// ProjectAIDeploy 按资源种类提供通用 Skill 下载和明确部署说明，不接触 Token 原文。
+export default function ProjectAIDeploy(target: DeploymentTarget) {
+  const { slug } = target
+  const isApp = target.kind === 'app'
   const [open, setOpen] = useState(false)
   const [copyFailed, setCopyFailed] = useState(false)
   const [downloading, setDownloading] = useState(false)
@@ -14,11 +20,20 @@ export default function ProjectAIDeploy({ slug, projectId }: { slug: string; pro
   const controller = useRef<AbortController | null>(null)
   const [message, messageContext] = antdMessage.useMessage()
   useEffect(() => () => controller.current?.abort(), [])
-  const instructions = `使用 stacknest-deploy Skill 上传我指定的文件，生成预览并返回链接，暂不正式发布。
+  const instructions =
+    target.kind === 'app'
+      ? `使用 stacknest-deploy Skill 更新我指定的 Docker 镜像，等待部署结果并返回应用链接。
+
+后台：${window.location.origin}
+应用：${slug}
+应用 ID：${target.appId}
+
+新镜像地址由我指定。复用已有配置，只询问缺失项；先用 app status 核对应用，不符或任务代次冲突时停止。不要输出 Token，也不要修改其他应用配置。`
+      : `使用 stacknest-deploy Skill 上传我指定的文件，生成预览并返回链接，暂不正式发布。
 
 后台：${window.location.origin}
 项目：${slug}
-项目 ID：${projectId}
+项目 ID：${target.projectId}
 
 复用已有配置，只询问缺失项。先用 Token 核对项目，不符或遇到版本冲突时停止；不要输出 Token。其余按 Skill 流程执行。`
 
@@ -88,13 +103,17 @@ export default function ProjectAIDeploy({ slug, projectId }: { slug: string; pro
         }
       >
         <p className="mb-4 text-sm leading-relaxed text-muted">
-          让 AI 上传文件，先预览，确认后再发布。
+          {isApp
+            ? '让 AI 更新镜像，直接部署正式应用并等待健康检查结果。'
+            : '让 AI 上传文件，先预览，确认后再发布。'}
         </p>
         <ol className="mb-5 space-y-4 text-sm">
           <li>
             <p className="font-medium">1. 准备 Token</p>
             <p className="mt-1 leading-relaxed text-muted">
-              创建或复用本项目的 Token，保存到仓库外的私有文件。只把文件路径告诉 AI。
+              {isApp
+                ? '创建或复用本应用的 Token，保存到仓库外的私有文件。只把文件路径告诉 AI。'
+                : '创建或复用本项目的 Token，保存到仓库外的私有文件。只把文件路径告诉 AI。'}
             </p>
           </li>
           <li>
@@ -109,6 +128,7 @@ export default function ProjectAIDeploy({ slug, projectId }: { slug: string; pro
             </div>
             <p className="leading-relaxed text-muted">
               将 Skill 解压到 AI 工具的 Skill 目录并重新加载。CLI 可让 AI 协助安装；已配置可跳过。
+              {isApp && ' Docker 需要 CLI v1.0.0-rc.10 或更新版本。'}
             </p>
             {downloadError && (
               <Alert className="mt-2" type="error" showIcon title={downloadError} />
@@ -117,7 +137,9 @@ export default function ProjectAIDeploy({ slug, projectId }: { slug: string; pro
           <li>
             <p className="mb-2 font-medium">3. 复制给 AI</p>
             <p className="mb-2 leading-relaxed text-muted">
-              粘贴以下说明，再告诉 AI 要上传哪个文件，例如「旅行攻略.html」。
+              {isApp
+                ? '粘贴以下说明，再告诉 AI 已推送的新镜像地址。'
+                : '粘贴以下说明，再告诉 AI 要上传哪个文件，例如「旅行攻略.html」。'}
             </p>
             <Input.TextArea
               aria-label="AI 部署说明"
@@ -127,7 +149,9 @@ export default function ProjectAIDeploy({ slug, projectId }: { slug: string; pro
               onFocus={(event) => event.target.select()}
             />
             <p className="mt-2 text-xs leading-relaxed text-muted">
-              已填入后台和项目信息，不含 Token。请在能访问此后台的电脑上使用。
+              {isApp
+                ? '已填入后台和应用信息，不含 Token。请在能访问此后台的电脑上使用。'
+                : '已填入后台和项目信息，不含 Token。请在能访问此后台的电脑上使用。'}
             </p>
           </li>
         </ol>

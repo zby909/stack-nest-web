@@ -1,5 +1,7 @@
 import { test, expect } from './fixtures.ts'
 import { assertFits } from './helpers.ts'
+import { readFile } from 'node:fs/promises'
+import { archivePath } from './fixtures.ts'
 import type { DeployToken } from '../src/types/deployToken.ts'
 
 const appId = '0c2d84bb-15a1-492b-938a-83282600c112'
@@ -42,6 +44,31 @@ test('应用自动部署明确授权，一次性展示凭据并支持撤销与�
   })
   await page.goto(`/apps/${appId}/automation`)
   await expect(page.getByRole('heading', { name: 'CI 示例应用 · 自动部署' })).toBeVisible()
+  await page.route('**/api/deploy-tools/skill', async (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/zip',
+      body: await readFile(archivePath),
+    }),
+  )
+  await page.getByRole('button', { name: '交给 AI 部署' }).click()
+  const ai = page.getByRole('dialog', { name: '交给 AI 部署' })
+  const instructions = await ai.getByRole('textbox', { name: 'AI 部署说明' }).inputValue()
+  expect(instructions).toContain(`应用 ID：${appId}`)
+  expect(instructions).toContain('app status')
+  expect(instructions).not.toContain('暂不正式发布')
+  expect(instructions).not.toContain(secret)
+  await expect(ai.getByText('让 AI 更新镜像，直接部署正式应用并等待健康检查结果。')).toBeVisible()
+  await assertFits(page)
+  const downloading = page.waitForEvent('download')
+  await ai.getByRole('button', { name: '下载 Skill' }).click()
+  expect((await downloading).suggestedFilename()).toBe('stacknest-deploy-skill.zip')
+  await ai
+    .getByRole('button', { name: /^关\s*闭$/ })
+    .last()
+    .click()
+  await expect(ai).toBeHidden()
+  expect(input).toBeNull()
   await page.getByRole('button', { name: '创建部署 Token' }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog.getByRole('checkbox', { name: '允许更新正式应用' })).not.toBeChecked()

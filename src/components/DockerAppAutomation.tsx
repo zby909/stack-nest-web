@@ -1,5 +1,6 @@
 import type { AppView } from '../types/app'
 import DeployTokens from './DeployTokens'
+import ProjectAIDeploy from './ProjectAIDeploy'
 
 // DockerAppAutomation 将应用级授权与最短使用说明放在可直接打开的详情页。
 export default function DockerAppAutomation({ app }: { app: AppView['app'] }) {
@@ -19,7 +20,11 @@ export default function DockerAppAutomation({ app }: { app: AppView['app'] }) {
         GitHub Actions 配置管理端地址 STACKNEST_URL，并将下方创建的应用 Token 存为 Secret
         STACKNEST_DEPLOY_TOKEN。 私有镜像的拉取凭据仍在后台配置。更新不回退应用数据库。
       </p>
-      <DeployTokens resource={app.id} kind="app" />
+      <DeployTokens
+        resource={app.id}
+        kind="app"
+        actions={<ProjectAIDeploy kind="app" appId={app.id} slug={app.slug} />}
+      />
     </section>
   )
 }
