@@ -54,10 +54,19 @@ export function pageFromPath(path: string): Page | null {
 }
 
 // appRoute 使用应用 UUID 区分详情，日志页具有独立可收藏地址。
-export function appRoute(path: string): { id: string; tab: 'overview' | 'logs' } | null {
+export function appRoute(
+  path: string,
+): { id: string; tab: 'overview' | 'logs' | 'automation' } | null {
   const match =
-    /^\/apps\/([a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12})(?:\/(overview|logs))?$/.exec(path)
-  return match ? { id: match[1], tab: match[2] === 'logs' ? 'logs' : 'overview' } : null
+    /^\/apps\/([a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12})(?:\/(overview|logs|automation))?$/.exec(
+      path,
+    )
+  return match
+    ? {
+        id: match[1],
+        tab: match[2] === 'logs' ? 'logs' : match[2] === 'automation' ? 'automation' : 'overview',
+      }
+    : null
 }
 
 export type ProjectTab = 'overview' | 'versions' | 'files' | 'activity' | 'settings'

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, useEffect, useState } from 'react'
 import { Alert, Button, Empty, Input, Modal, Spin, Tag, Tooltip } from 'antd'
 import { getApp, listApps, operateApp } from '../api/apps'
 import { getErrorMessage } from '../lib/format'
@@ -14,6 +14,9 @@ import DockerAppLogs from './DockerAppLogs'
 import DockerAppRuntime from './DockerAppRuntime'
 import DockerAppProgress from './DockerAppProgress'
 import DockerAppLimits from './DockerAppLimits'
+import LazyPanel from './LazyPanel'
+
+const DockerAppAutomation = lazy(() => import('./DockerAppAutomation'))
 
 const phase = {
   pending: '等待执行',
@@ -36,7 +39,7 @@ export default function DockerApps({
   detail,
 }: {
   user: AuthUser
-  detail?: { id: string; tab: 'overview' | 'logs' } | null
+  detail?: { id: string; tab: 'overview' | 'logs' | 'automation' } | null
 }) {
   const detailId = detail?.id
   const [result, setResult] = useState<AppList | null>(null)
@@ -158,6 +161,13 @@ export default function DockerApps({
             >
               运行日志
             </RouteLink>
+            <RouteLink
+              to={`/apps/${detail.id}/automation`}
+              active={detail.tab === 'automation'}
+              className="rounded px-2 py-2 aria-[current=page]:bg-subtle"
+            >
+              自动部署
+            </RouteLink>
           </nav>
         </div>
       )}
@@ -213,6 +223,10 @@ export default function DockerApps({
             }
           />
         </div>
+      ) : detail?.tab === 'automation' ? (
+        <LazyPanel>
+          <DockerAppAutomation key={detail.id} app={views[0].app} />
+        </LazyPanel>
       ) : detail?.tab === 'logs' ? (
         <div className="min-w-0 rounded-xl border border-line bg-panel p-4 sm:p-5">
           <h2 className="mb-4 text-base font-semibold break-all">{views[0].app.name} · 运行日志</h2>
@@ -371,6 +385,9 @@ export default function DockerApps({
                   <Button onClick={() => setEditor({ target: view })} disabled={disabled}>
                     更新
                   </Button>
+                  {!detail && (
+                    <Button onClick={() => navigate(`/apps/${app.id}/automation`)}>自动部署</Button>
+                  )}
                   <Button
                     onClick={() => void act(view, running ? 'stop' : 'start')}
                     disabled={disabled}
