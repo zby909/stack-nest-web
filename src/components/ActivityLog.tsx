@@ -21,6 +21,7 @@ const actions: Record<ActivityEvent['action'], string> = {
   'app-stop': '停止应用',
   'app-restart': '重启应用',
   'app-delete': '删除应用',
+  'app-image-delete': '清理镜像',
   network: '网络配置',
   'app-limits': '应用资源配置',
   'user-add': '添加邮箱',

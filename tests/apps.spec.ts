@@ -543,6 +543,7 @@ for (const ordinary of [false, true]) {
     await page.goto('/apps')
     await expect(page.getByRole('article', { name: 'Small HTTP' })).toBeVisible()
     await expect(page.getByRole('button', { name: '资源配置', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '镜像空间', exact: true })).toHaveCount(0)
   })
 }
 
@@ -641,4 +642,130 @@ test('应用详情不存在时保持权限边界', async ({ page }) => {
   await page.goto('/apps/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')
   await expect(page.getByText('应用不存在或无权查看')).toBeVisible()
   await expect(page.getByText('Small HTTP', { exact: true })).toHaveCount(0)
+})
+
+// 镜像删除按完整 ID 提交；并发引用冲突后必须刷新，不沿用旧的可清理状态。
+test('镜像空间保护引用并处理清理冲突', async ({ page }) => {
+  await installAPI(page, { superadmin: true })
+  const removableID = 'sha256:' + 'a'.repeat(64)
+  let deleted = false
+  let conflict = true
+  let writes = 0
+  await page.route('**/api/apps/images**', async (route) => {
+    if (route.request().method() === 'DELETE') {
+      expect(decodeURIComponent(new URL(route.request().url()).pathname)).toBe(
+        `/api/apps/images/${removableID}`,
+      )
+      writes++
+      if (conflict)
+        return route.fulfill({ status: 409, json: { error: '镜像已被另一个容器引用，请刷新清单' } })
+      deleted = true
+      return route.fulfill({ json: { deleted: true } })
+    }
+    return route.fulfill({
+      json: {
+        totalBytes: deleted ? 1024 : 2048,
+        images: [
+          {
+            id: 'sha256:' + 'b'.repeat(64),
+            tags: ['protected:latest'],
+            sizeBytes: 1024,
+            managed: true,
+            removable: false,
+            reason: '应用或容器正在引用',
+          },
+          ...(deleted
+            ? []
+            : [
+                {
+                  id: removableID,
+                  tags: ['unused:v1'],
+                  sizeBytes: 1024,
+                  managed: true,
+                  removable: true,
+                  reason: '可清理',
+                },
+              ]),
+        ],
+      },
+    })
+  })
+  await page.goto('/apps')
+  await page.getByRole('button', { name: '镜像空间', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Docker 镜像空间', exact: true })
+  await expect(
+    dialog.getByRole('listitem').filter({ hasText: 'protected:latest' }).getByRole('button'),
+  ).toBeDisabled()
+  const unused = dialog.getByRole('listitem').filter({ hasText: 'unused:v1' })
+  await unused.getByRole('button', { name: '清理镜像' }).click()
+  expect(writes).toBe(0)
+  await page
+    .getByRole('dialog', { name: '确认清理这个镜像？' })
+    .getByRole('button', { name: '确认清理' })
+    .click()
+  await expect(dialog.getByRole('alert')).toContainText('镜像已被另一个容器引用')
+  await expect(unused.getByRole('button')).toBeDisabled()
+  conflict = false
+  await dialog.getByRole('button', { name: '刷新清单' }).click()
+  await expect(unused.getByRole('button')).toBeEnabled()
+  await unused.getByRole('button').click()
+  await page
+    .getByRole('dialog', { name: '确认清理这个镜像？' })
+    .getByRole('button', { name: '确认清理' })
+    .click()
+  await expect(unused).toHaveCount(0)
+  await expect(dialog.getByText('镜像已清理，正在重新统计空间。')).toBeVisible()
+  expect(writes).toBe(2)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
+// 历史记录与当前运行容器分离，失败信息作为文本渲染并覆盖空态与刷新失败。
+test('部署记录保留失败摘要并安全展示', async ({ page }) => {
+  await installAPI(page, { user: true })
+  let mode = 'records'
+  await page.route('**/api/apps/*/deployments', async (route) => {
+    if (mode === 'error')
+      return route.fulfill({ status: 503, json: { error: '部署记录暂时不可用' } })
+    return route.fulfill({
+      json: {
+        deployments:
+          mode === 'empty'
+            ? []
+            : [
+                {
+                  generation: 4,
+                  image: 'example/http:failed',
+                  actorEmail: admin.email,
+                  source: 'automation',
+                  status: 'failed',
+                  message: '<script>window.historyExecuted = true</script>\n[已隐藏]',
+                  queuedAt: '2026-11-06T01:00:00Z',
+                  startedAt: '2026-11-06T01:00:01Z',
+                  finishedAt: '2026-11-06T01:01:01Z',
+                },
+              ],
+      },
+    })
+  })
+  await page.goto('/apps')
+  await page.getByRole('button', { name: '部署记录', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByText('部署失败', { exact: true })).toBeVisible()
+  await expect(dialog.getByText('example/http:failed', { exact: true })).toBeVisible()
+  await expect(dialog.getByText(/自动部署.*耗时 60 秒/)).toBeVisible()
+  await expect(dialog.getByText(/<script>window.historyExecuted/)).toBeVisible()
+  expect(await page.evaluate(() => 'historyExecuted' in window)).toBe(false)
+  await page.screenshot({
+    path: `test-results/app-history-${test.info().project.name}.png`,
+    fullPage: true,
+    animations: 'disabled',
+  })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  mode = 'error'
+  await dialog.getByRole('button', { name: /刷\s*新$/ }).click()
+  await expect(dialog.getByRole('alert')).toContainText('部署记录暂时不可用')
+  mode = 'empty'
+  await dialog.getByRole('button', { name: /刷\s*新$/ }).click()
+  await expect(dialog.getByText('暂无部署记录')).toBeVisible()
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
 })

@@ -52,6 +52,7 @@ export type ActivityEvent = {
     | 'app-stop'
     | 'app-restart'
     | 'app-delete'
+    | 'app-image-delete'
     | 'network'
     | 'app-limits'
     | 'user-add'

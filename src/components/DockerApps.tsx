@@ -17,6 +17,8 @@ import DockerAppLimits from './DockerAppLimits'
 import LazyPanel from './LazyPanel'
 
 const DockerAppAutomation = lazy(() => import('./DockerAppAutomation'))
+const DockerImages = lazy(() => import('./DockerImages'))
+const DockerAppHistory = lazy(() => import('./DockerAppHistory'))
 
 const phase = {
   pending: '等待执行',
@@ -53,6 +55,8 @@ export default function DockerApps({
   const [cancelling, setCancelling] = useState<AppView | null>(null)
   const [busyId, setBusyId] = useState('')
   const [showLimits, setShowLimits] = useState(false)
+  const [showImages, setShowImages] = useState(false)
+  const [history, setHistory] = useState<AppView | null>(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -195,7 +199,10 @@ export default function DockerApps({
           />
           <div className="flex flex-wrap gap-2">
             {user.role === 'superadmin' && (
-              <Button onClick={() => setShowLimits(true)}>资源配置</Button>
+              <>
+                <Button onClick={() => setShowImages(true)}>镜像空间</Button>
+                <Button onClick={() => setShowLimits(true)}>资源配置</Button>
+              </>
             )}
             <Button onClick={() => setRefresh((value) => value + 1)} loading={loading}>
               刷新
@@ -382,6 +389,7 @@ export default function DockerApps({
                   >
                     日志
                   </Button>
+                  <Button onClick={() => setHistory(view)}>部署记录</Button>
                   <Button onClick={() => setEditor({ target: view })} disabled={disabled}>
                     更新
                   </Button>
@@ -405,6 +413,20 @@ export default function DockerApps({
             )
           })}
         </div>
+      )}
+      {showImages && (
+        <LazyPanel>
+          <DockerImages onClose={() => setShowImages(false)} />
+        </LazyPanel>
+      )}
+      {history && (
+        <LazyPanel>
+          <DockerAppHistory
+            id={history.app.id}
+            name={history.app.name}
+            onClose={() => setHistory(null)}
+          />
+        </LazyPanel>
       )}
       {showLimits && (
         <DockerAppLimits
