@@ -8,9 +8,11 @@ type Values = { maxApps: number; totalMemoryMiB: number }
 
 // DockerAppLimits 只由超管打开，配置影响新任务的准入而不修改已有容器。
 export default function DockerAppLimits({
+  maxMemoryMiB,
   onClose,
   onSaved,
 }: {
+  maxMemoryMiB?: number
   onClose: () => void
   onSaved: () => void
 }) {
@@ -152,7 +154,8 @@ export default function DockerAppLimits({
             />
           </Form.Item>
           <p className="text-xs leading-relaxed text-muted">
-            单个应用仍限制为 64–512 MiB、0.1–1 核。应用正在执行操作时暂不能修改实例预算。
+            单个应用内存范围为 64–{maxMemoryMiB ?? '—'} MiB，CPU 为 0.1–1 核。
+            应用正在执行操作时暂不能修改实例预算。
           </p>
         </Form>
       )}

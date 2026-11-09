@@ -6,33 +6,36 @@
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm exec playwright install chromium
+pnpm exec playwright install chromium webkit
 pnpm check
 ```
 
-Linux 安装系统依赖时用 `pnpm exec playwright install --with-deps chromium`。Playwright 更新后重新安装浏览器。
+Linux 安装系统依赖时用 `pnpm exec playwright install --with-deps chromium webkit`。Playwright 更新后重新安装浏览器。
 
-检查包含类型、Lint、构建和桌面 / 手机回归，失败即停止。测试服务监听 `127.0.0.1:4175`，无需真实后端、数据库或邮箱。
+检查包含类型、Lint、构建和桌面 / 手机回归，失败即停止。Chrome 覆盖完整用例，iPhone 配置使用 WebKit 检查登录、HTML 上传、弱网恢复、主题、Docker 表单与排障弹窗。测试服务监听 `127.0.0.1:4175`，无需真实后端、数据库或邮箱。
 
 只运行一部分：
 
 ```bash
 pnpm test:e2e --project=mobile
+pnpm test:e2e --project=iphone
 pnpm test:e2e tests/projects.spec.ts
 ```
 
 ## 范围
 
-| 场景 | 重点                                         |
-| ---- | -------------------------------------------- |
+| 场景 | 重点                                                 |
+| ---- | ---------------------------------------------------- |
 | 上传 | 单 HTML / 压缩包、暂停、刷新恢复、响应丢失和重复提交 |
-| 项目 | 草稿、预览、发布、回退、文件及编辑冲突       |
-| 应用 | 配置、部署阶段、资源、日志和失败提示         |
-| 权限 | 入口、角色、邮箱和邀请确认                   |
-| 布局 | 窄屏、弹窗、主题和外观持久化                 |
-| 运维 | 日志筛选、备份、网络和实例预算               |
+| 项目 | 草稿、预览、发布、回退、文件及编辑冲突               |
+| 应用 | 配置、部署阶段、资源、日志和失败提示                 |
+| 权限 | 入口、角色、邮箱和邀请确认                           |
+| 布局 | 窄屏、弹窗、主题和外观持久化                         |
+| 运维 | 日志筛选、备份、网络和实例预算                       |
 
 常规回归的 API 由 tests/fixtures.ts 模拟，未知接口或外部请求使测试失败。不会发邮件或修改线上数据。
+
+WebKit 与设备模拟不能替代真实 iPhone 的系统文件选择器、输入法和前后台切换；这些仍需实机抽查。
 
 例如故意丢弃分片响应，再检查浏览器查询服务端进度后继续，避免重复上传或发布。
 

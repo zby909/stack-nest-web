@@ -5,6 +5,7 @@ import type { AuthUser } from '../src/types/auth.ts'
 import type { Project } from '../src/types/project.ts'
 import { admin, date, original, successfulBackup } from './data.ts'
 import { mockUploads, type UploadMock } from './upload-mock.ts'
+import { startUploadReceiver } from './upload-server.ts'
 
 export const archivePath = new URL('./fixtures/site.zip', import.meta.url)
 type RecordedRequest = {
@@ -37,7 +38,7 @@ type MockAPI = {
 // 独立浏览器上下文中的所有 API 都被拦截，未知接口与外部请求直接使测试失败。
 export const test = base.extend<{ api: MockAPI }>({
   api: [
-    async ({ context, baseURL }, use) => {
+    async ({ context, baseURL, browserName }, runFixture) => {
       const zip = await readFile(archivePath)
       const state: MockAPI = {
         role: 'admin',
@@ -82,6 +83,10 @@ export const test = base.extend<{ api: MockAPI }>({
         },
         filesError: false,
       }
+      const receiver =
+        browserName === 'webkit'
+          ? await startUploadReceiver(state.uploads, state.projects, baseURL!, state.unexpected)
+          : undefined
       await context.route('**/*', async (route) => {
         const request = route.request()
         const url = new URL(request.url())
@@ -102,6 +107,8 @@ export const test = base.extend<{ api: MockAPI }>({
           match: request.headers()['if-match'],
           offset: request.headers()['upload-offset'],
         })
+        if (receiver && method === 'PATCH' && path.startsWith('/api/uploads/'))
+          return route.continue({ url: receiver.url + path })
         if (path.startsWith('/api/uploads'))
           return mockUploads(route, state.uploads, state.projects)
         // reply 为模拟响应加固定请求编号，验证界面的错误定位提示。
@@ -330,7 +337,11 @@ export const test = base.extend<{ api: MockAPI }>({
         state.unexpected.push(`${method} ${path}`)
         return reply({ error: 'Unexpected mock endpoint' }, 501)
       })
-      await use(state)
+      try {
+        await runFixture(state)
+      } finally {
+        await receiver?.close()
+      }
       expect(state.unexpected, '所有请求必须匹配本机测试的模拟接口').toEqual([])
     },
     { auto: true },

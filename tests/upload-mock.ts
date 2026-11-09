@@ -1,4 +1,4 @@
-import type { Route } from '@playwright/test'
+import type { Request, Route } from '@playwright/test'
 import type { Project } from '../src/types/project.ts'
 import { date, original } from './data.ts'
 
@@ -22,8 +22,15 @@ export type UploadMock = {
   legacyChunks?: boolean
 }
 
+// UploadRoute 允许同一协议夹具处理浏览器拦截与真实 HTTP 分片，不依赖浏览器专有对象。
+export type UploadRoute = {
+  request: () => Pick<Request, 'url' | 'method' | 'headers' | 'postDataJSON' | 'postDataBuffer'>
+  fulfill: Route['fulfill']
+  abort: Route['abort']
+}
+
 // mockUploads 模拟服务端已提交偏移；可独立制造分片响应和发布响应丢失。
-export async function mockUploads(route: Route, state: UploadMock, projects: Project[]) {
+export async function mockUploads(route: UploadRoute, state: UploadMock, projects: Project[]) {
   const request = route.request()
   const path = new URL(request.url()).pathname
   const method = request.method()

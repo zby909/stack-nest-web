@@ -10,6 +10,7 @@ export type ContainerApp = {
   cpus: number
   dataPath: string
   healthPath?: string
+  startupTimeoutSeconds?: number
   envKeys: string[]
   hasRegistry: boolean
   generation: number
@@ -81,6 +82,7 @@ export type AppInput = {
   cpus: number
   dataPath: string
   healthPath?: string
+  startupTimeoutSeconds?: number
   env: Record<string, string>
   replaceEnv: boolean
   envPatch?: Record<string, string | null>

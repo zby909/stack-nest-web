@@ -177,8 +177,8 @@ export default function DockerApps({
       )}
       {!detail && (
         <div className="mb-4 rounded-xl border border-line bg-panel p-4 text-sm leading-relaxed text-muted">
-          单个 HTTP 服务，最多 {result?.limits.maxApps ?? 3} 个应用，内存总额{' '}
-          {result?.limits.totalMemoryMiB ?? 768} MiB。
+          单个 HTTP 服务，最多 {result?.limits.maxApps ?? '—'} 个应用，内存总额{' '}
+          {result?.limits.totalMemoryMiB ?? '—'} MiB。
           每个应用使用独立网络；联网权限由服务器部署配置决定，浏览器通过应用域名访问。
           {isAdmin(user) && (
             <span className="mt-1 block text-xs">
@@ -430,14 +430,15 @@ export default function DockerApps({
       )}
       {showLimits && (
         <DockerAppLimits
+          maxMemoryMiB={result?.limits.maxMemoryMiB}
           onClose={() => setShowLimits(false)}
           onSaved={() => setRefresh((value) => value + 1)}
         />
       )}
-      {editor && (
+      {editor && result && (
         <DockerAppForm
           target={editor.target}
-          maxMemoryMiB={result?.limits.maxMemoryMiB ?? 512}
+          maxMemoryMiB={result.limits.maxMemoryMiB}
           onClose={() => setEditor(null)}
           onSaved={() => setRefresh((value) => value + 1)}
         />

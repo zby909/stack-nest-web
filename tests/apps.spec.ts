@@ -51,7 +51,10 @@ async function installAPI(
     writes: [] as { path: string; body: Record<string, unknown> }[],
     failed: false,
     logText: '<script>window.logExecuted = true</script>\n[已隐藏]',
+    deploymentLogText:
+      '容器状态：restarting\n重启次数：7\n启动日志：\nBOOTSTRAP_ADMIN_PASSWORD 必须是 12—128 位密码\n[已隐藏]',
     logReads: 0,
+    maxMemoryMiB: 1024,
     limits: {
       maxApps: 3,
       totalMemoryMiB: 768,
@@ -83,7 +86,7 @@ async function installAPI(
         limits: {
           maxApps: state.limits.maxApps,
           totalMemoryMiB: state.limits.totalMemoryMiB,
-          maxMemoryMiB: 1024,
+          maxMemoryMiB: state.maxMemoryMiB,
         },
       })
     }
@@ -107,9 +110,7 @@ async function installAPI(
       const generation = Number(new URL(request.url()).searchParams.get('generation'))
       if (generation !== state.apps[0]?.app.generation)
         return reply({ error: '部署任务已更新，请刷新后重试' }, 409)
-      return reply({
-        text: '容器状态：restarting\n重启次数：7\n启动日志：\nBOOTSTRAP_ADMIN_PASSWORD 必须是 12—128 位密码\n[已隐藏]',
-      })
+      return reply({ text: state.deploymentLogText })
     }
     if (method === 'GET' && path.startsWith('/api/apps/')) {
       const item = state.apps.find((view) => path === `/api/apps/${view.app.id}`)
@@ -117,7 +118,11 @@ async function installAPI(
         ? reply({
             ...item,
             available: true,
-            limits: { maxApps: 3, totalMemoryMiB: 768, maxMemoryMiB: 1024 },
+            limits: {
+              maxApps: state.limits.maxApps,
+              totalMemoryMiB: state.limits.totalMemoryMiB,
+              maxMemoryMiB: state.maxMemoryMiB,
+            },
           })
         : reply({ error: '应用不存在或无权查看' }, 404)
     }
@@ -162,6 +167,7 @@ async function installAPI(
         cpus: input.cpus,
         dataPath: input.dataPath,
         healthPath: input.healthPath,
+        startupTimeoutSeconds: input.startupTimeoutSeconds,
       })
       if (input.replaceEnv) next.app.envKeys = Object.keys(input.env)
       next.app.hasRegistry =
@@ -301,6 +307,7 @@ test('部署与编辑应用保留敏感配置', async ({ page }) => {
     registry: { username: 'test-user', password: 'fake-registry-secret' },
     replaceEnv: true,
     healthPath: '/health',
+    startupTimeoutSeconds: 60,
   })
   await expect(page.getByRole('article', { name: 'Small HTTP' })).toBeVisible()
   await page.getByRole('button', { name: /^更\s*新$/ }).click()
@@ -323,6 +330,109 @@ test('部署与编辑应用保留敏感配置', async ({ page }) => {
     healthPath: '/health',
   })
   expect(state.writes[1].body).not.toHaveProperty('registry')
+})
+
+// 高级启动等待设置可保存并回填；空值阻止提交，数值边界也由服务端测试覆盖。
+test('高级启动等待配置保留与输入校验', async ({ page }) => {
+  const state = await installAPI(page)
+  state.apps[0].app.startupTimeoutSeconds = 180
+  await page.goto('/apps')
+  await page.getByRole('button', { name: /^更\s*新$/ }).click()
+  const dialog = page.getByRole('dialog')
+  await dialog.getByText('高级设置', { exact: true }).click()
+  const timeout = dialog.getByLabel('启动等待时间（秒）', { exact: true })
+  await expect(timeout).toHaveValue('180')
+  await timeout.fill('')
+  await dialog.getByRole('button', { name: '提交更新', exact: true }).click()
+  await expect(dialog.getByText('请输入启动等待时间')).toBeVisible()
+  expect(state.writes).toHaveLength(0)
+  await timeout.fill('300')
+  await dialog.getByRole('button', { name: '提交更新', exact: true }).click()
+  await expect(dialog).not.toBeVisible()
+  expect(state.writes[0].body.startupTimeoutSeconds).toBe(300)
+  await page.getByRole('button', { name: /^更\s*新$/ }).click()
+  await dialog.getByText('高级设置', { exact: true }).click()
+  await expect(timeout).toHaveValue('300')
+})
+
+// 排障报告绑定失败代次，复制完整脱敏快照，不受日志搜索影响，也不包含环境值。
+test('失败排障信息预览后复制完整快照', async ({ page }) => {
+  const state = await installAPI(page)
+  state.apps[0].app.status = 'error'
+  state.apps[0].app.error = '启动失败'
+  // 更新失败已恢复 v1，失败快照仍属于尝试部署的 v2。
+  state.deploymentLogText = `镜像：example/http:v2\n启动等待：180 秒\n${state.deploymentLogText}`
+  state.apps[0].progress = {
+    generation: 1,
+    stage: 'failed',
+    failedStage: 'healthchecking',
+    updatedAt: initial.app.updatedAt,
+  }
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: async (text: string) => {
+          Object.assign(window, { copiedReport: text })
+        },
+      },
+    })
+  })
+  await page.goto('/apps')
+  await page.getByRole('button', { name: '失败详情', exact: true }).click()
+  const details = page.getByRole('dialog', { name: '失败详情 · Small HTTP' })
+  await details.getByLabel('搜索失败详情').fill('不存在的内容')
+  await details.getByRole('button', { name: '复制排障信息', exact: true }).click()
+  const preview = page.getByRole('dialog', { name: '预览排障信息' })
+  const text = preview.getByRole('textbox', { name: '排障信息预览' })
+  await expect(text).toHaveValue(/任务代次：1/)
+  await expect(text).toHaveValue(/healthchecking/)
+  await expect(text).toHaveValue(/重启次数：7/)
+  await expect(text).toHaveValue(/\[已隐藏\]/)
+  await expect(text).toHaveValue(/当前配置镜像：example\/http:v1（失败后可能已恢复旧版）/)
+  await expect(text).toHaveValue(/本次失败快照[^\n]+\n镜像：example\/http:v2\n启动等待：180 秒/)
+  expect(await page.evaluate(() => Reflect.get(window, 'copiedReport'))).toBeUndefined()
+  await preview.getByRole('button', { name: '确认复制', exact: true }).click()
+  expect(await page.evaluate(() => Reflect.get(window, 'copiedReport'))).toBe(
+    await text.inputValue(),
+  )
+  expect(await text.inputValue()).not.toContain('envKeys')
+  await page.screenshot({
+    path: test.info().outputPath('app-report.png'),
+    fullPage: true,
+    animations: 'disabled',
+  })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await preview.getByRole('button', { name: '关闭预览', exact: true }).click()
+  state.apps[0].app.generation = 2
+  await details.getByRole('button', { name: '刷新日志', exact: true }).click()
+  await expect(details.getByText('部署任务已更新，请刷新后重试')).toBeVisible()
+  await expect(details.getByRole('button', { name: '复制排障信息', exact: true })).toBeDisabled()
+})
+
+// 剪贴板权限不足时仍保留报告文本，可选中全文手动复制。
+test('排障复制被拒绝时可手动选择文本', async ({ page }) => {
+  const state = await installAPI(page)
+  state.apps[0].app.status = 'error'
+  state.apps[0].app.error = '启动失败'
+  await page.addInitScript(() =>
+    Object.defineProperty(navigator, 'clipboard', { value: undefined }),
+  )
+  await page.goto('/apps')
+  await page.getByRole('button', { name: '失败详情', exact: true }).click()
+  await page.getByRole('button', { name: '复制排障信息', exact: true }).click()
+  const preview = page.getByRole('dialog', { name: '预览排障信息' })
+  await preview.getByRole('button', { name: '确认复制', exact: true }).click()
+  await expect(
+    preview.getByText('浏览器未允许复制，点击上方文本选中后手动复制即可。'),
+  ).toBeVisible()
+  const text = preview.getByRole('textbox', { name: '排障信息预览' })
+  await text.focus()
+  expect(
+    await text.evaluate((element: HTMLTextAreaElement) =>
+      element.value.slice(element.selectionStart, element.selectionEnd),
+    ),
+  ).toBe(await text.inputValue())
 })
 
 // 按项修改、空字符串和明确删除可以一起提交，未改动的敏感值不会被覆盖。
@@ -502,9 +612,11 @@ test('健康检查路径拒绝外部地址并支持留空', async ({ page }) => 
 // 只有超管能打开实例预算，冲突保留输入，重新加载后再保存使用新版本。
 test('超管资源配置与版本冲突', async ({ page }) => {
   const state = await installAPI(page, { superadmin: true })
+  state.maxMemoryMiB = 896
   await page.goto('/apps')
   await page.getByRole('button', { name: '资源配置', exact: true }).click()
   const dialog = page.getByRole('dialog')
+  await expect(dialog.getByText(/单个应用内存范围为 64–896 MiB/)).toBeVisible()
   await expect(dialog.getByText('已预留：1 个应用，128 MiB 内存。')).toBeVisible()
   await page.screenshot({
     path: `test-results/resources-modal-${test.info().project.name}.png`,

@@ -61,6 +61,7 @@ export default function DockerAppForm({
           ...fields,
           dataPath: fields.dataPath ?? '',
           healthPath: fields.healthPath ?? '',
+          startupTimeoutSeconds: fields.startupTimeoutSeconds ?? app?.startupTimeoutSeconds ?? 60,
           env: !app || fields.replaceEnv ? parseEnv(envText ?? '') : {},
           envPatch: app && !fields.replaceEnv ? environmentPatch(environment) : undefined,
           replaceEnv: !app || fields.replaceEnv === true,
@@ -115,6 +116,7 @@ export default function DockerAppForm({
           cpus: app?.cpus ?? 0.5,
           dataPath: app?.dataPath ?? '',
           healthPath: app?.healthPath ?? '',
+          startupTimeoutSeconds: app?.startupTimeoutSeconds ?? 60,
           replaceEnv: false,
           clearRegistry: false,
         }}
@@ -173,7 +175,7 @@ export default function DockerAppForm({
         <Form.Item
           name="healthPath"
           label="HTTP 健康检查路径（可选）"
-          extra="例如 /health。部署时最多等待 60 秒返回 2xx；留空仅检查端口，不会自动重启异常应用。"
+          extra="例如 /health，返回 2xx 才就绪；留空仅检查端口。默认等待 60 秒，可在高级设置调整。"
           rules={[
             { max: 256 },
             {
@@ -213,6 +215,24 @@ export default function DockerAppForm({
         )}
         <Collapse
           items={[
+            {
+              key: 'startup',
+              label: '高级设置',
+              forceRender: true,
+              children: (
+                <Form.Item
+                  name="startupTimeoutSeconds"
+                  label="启动等待时间（秒）"
+                  extra="30–300 秒，默认 60 秒。适合首次初始化较慢的应用；进程退出或内存不足仍会提前失败。"
+                  rules={[
+                    { required: true, message: '请输入启动等待时间' },
+                    { type: 'integer', min: 30, max: 300, message: '启动等待时间须为 30–300 秒' },
+                  ]}
+                >
+                  <InputNumber min={30} max={300} step={30} precision={0} className="w-full" />
+                </Form.Item>
+              ),
+            },
             {
               key: 'registry',
               label: app?.hasRegistry ? '私有仓库（已有凭据，留空保留）' : '私有仓库（可选）',

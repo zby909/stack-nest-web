@@ -2,16 +2,20 @@ import { useEffect, useRef, useState } from 'react'
 import { Alert, Button, Checkbox, Input, Spin } from 'antd'
 import { appLogs, appDeploymentLogs } from '../api/apps'
 import { getErrorMessage } from '../lib/format'
+import type { AppView } from '../types/app'
+import DockerAppReport from './DockerAppReport'
 
 // DockerAppLogPanel 只在可见页面串行刷新，搜索和跟随不改变日志内容或执行其中的代码。
 export default function DockerAppLogPanel({
   id,
   generation,
   kind = 'runtime',
+  view,
 }: {
   id: string
   generation?: number
   kind?: 'runtime' | 'deployment'
+  view?: AppView
 }) {
   const [text, setText] = useState('')
   const [error, setError] = useState('')
@@ -83,6 +87,9 @@ export default function DockerAppLogPanel({
         <Button loading={loading} onClick={() => setRefresh((value) => value + 1)}>
           刷新日志
         </Button>
+        {kind === 'deployment' && view && (
+          <DockerAppReport view={view} text={text} disabled={loading || !!error || !text} />
+        )}
         <Checkbox checked={automatic} onChange={(event) => setAutomatic(event.target.checked)}>
           自动刷新
         </Checkbox>

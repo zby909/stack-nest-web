@@ -18,14 +18,29 @@ export default defineConfig({
     serviceWorkers: 'block',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
   },
   projects: [
     {
       name: 'desktop',
-      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 960 } },
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1440, height: 960 },
+        channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
+      },
     },
-    { name: 'mobile', use: { ...devices['Pixel 7'], viewport: { width: 390, height: 844 } } },
+    {
+      name: 'mobile',
+      use: {
+        ...devices['Pixel 7'],
+        viewport: { width: 390, height: 844 },
+        channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
+      },
+    },
+    {
+      name: 'iphone',
+      testMatch: /(?:login|html-upload|upload-network|appearance|apps)\.spec\.ts$/,
+      use: { ...devices['iPhone 13'], browserName: 'webkit' },
+    },
   ],
   webServer: {
     env: {

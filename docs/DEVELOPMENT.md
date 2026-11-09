@@ -11,7 +11,7 @@ src/
 tests/         # 浏览器回归与模拟接口
 ```
 
-API 以 [Server OpenAPI](https://github.com/zby909/stack-nest-server/blob/main/openapi/openapi.yaml)为准。使用共享 Axios client，服务端执行权限校验。
+API 以 Server 的 `/openapi.yaml` 完整契约为准；[源文件](https://github.com/zby909/stack-nest-server/tree/main/openapi)按功能拆分维护。使用共享 Axios client，服务端执行权限校验。
 
 ## 页面与状态
 

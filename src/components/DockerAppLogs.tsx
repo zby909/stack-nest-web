@@ -38,6 +38,7 @@ export default function DockerAppLogs({
         id={target.app.id}
         kind={kind}
         generation={target.app.generation}
+        view={target}
       />
     </Modal>
   )

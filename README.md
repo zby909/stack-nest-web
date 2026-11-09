@@ -57,12 +57,12 @@ pnpm dev
 ## 检查与构建
 
 ```bash
-pnpm exec playwright install chromium
+pnpm exec playwright install chromium webkit
 pnpm check
 pnpm build
 ```
 
-`pnpm check` 包含类型检查、Lint，以及桌面和手机尺寸的浏览器回归。构建输出为 `dist/`，生产由平台 Nginx 提供。[测试说明](docs/TESTING.md) · [构建配置](docs/DEPLOYMENT.md)
+`pnpm check` 包含类型检查、Lint，以及 Chrome 和 iPhone / WebKit 浏览器回归。构建输出为 `dist/`，生产由平台 Nginx 提供。[测试说明](docs/TESTING.md) · [构建配置](docs/DEPLOYMENT.md)
 
 文档截图可用 `pnpm screenshots` 重新生成，使用本地演示数据。
 
