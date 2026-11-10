@@ -1,6 +1,11 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Locator } from '@playwright/test'
 import { admin } from './data.ts'
 import type { AppView, AppInput, AppLimitsView } from '../src/types/app.ts'
+
+// activateButton 按当前设备使用触摸或鼠标操作按钮。
+function activateButton(button: Locator, hasTouch: boolean) {
+  return hasTouch ? button.tap() : button.click()
+}
 
 const initial: AppView = {
   app: {
@@ -469,12 +474,12 @@ test('环境变量逐项修改与明确删除', async ({ page }) => {
 })
 
 // 重复键不能提交；整批替换需明确勾选，并与逐项补丁互斥。
-test('重复环境变量和整体替换', async ({ page }) => {
+test('重复环境变量和整体替换', async ({ page, hasTouch }) => {
   const state = await installAPI(page)
   await page.goto('/apps')
   await page.getByRole('button', { name: /^更\s*新$/ }).click()
   const dialog = page.getByRole('dialog')
-  await dialog.getByRole('button', { name: '添加环境变量', exact: true }).click()
+  await activateButton(dialog.getByRole('button', { name: '添加环境变量', exact: true }), hasTouch)
   await dialog.getByLabel('变量名称 2', { exact: true }).fill('SECRET')
   await dialog.getByRole('button', { name: '提交更新', exact: true }).click()
   await expect(dialog.getByRole('alert')).toContainText('SECRET 重复')
@@ -802,7 +807,7 @@ test('应用详情不存在时保持权限边界', async ({ page }) => {
 })
 
 // 镜像删除按完整 ID 提交；并发引用冲突后必须刷新，不沿用旧的可清理状态。
-test('镜像空间保护引用并处理清理冲突', async ({ page }) => {
+test('镜像空间保护引用并处理清理冲突', async ({ page, hasTouch }) => {
   await installAPI(page, { superadmin: true })
   const removableID = 'sha256:' + 'a'.repeat(64)
   let deleted = false
@@ -854,22 +859,20 @@ test('镜像空间保护引用并处理清理冲突', async ({ page }) => {
     dialog.getByRole('listitem').filter({ hasText: 'protected:latest' }).getByRole('button'),
   ).toBeDisabled()
   const unused = dialog.getByRole('listitem').filter({ hasText: 'unused:v1' })
-  await unused.getByRole('button', { name: '清理镜像' }).click()
+  const cleanButton = unused.getByRole('button', { name: '清理镜像' })
+  await activateButton(cleanButton, hasTouch)
   expect(writes).toBe(0)
-  await page
+  const confirmButton = page
     .getByRole('dialog', { name: '确认清理这个镜像？' })
     .getByRole('button', { name: '确认清理' })
-    .click()
+  await activateButton(confirmButton, hasTouch)
   await expect(dialog.getByRole('alert')).toContainText('镜像已被另一个容器引用')
-  await expect(unused.getByRole('button')).toBeDisabled()
+  await expect(cleanButton).toBeDisabled()
   conflict = false
   await dialog.getByRole('button', { name: '刷新清单' }).click()
-  await expect(unused.getByRole('button')).toBeEnabled()
-  await unused.getByRole('button').click()
-  await page
-    .getByRole('dialog', { name: '确认清理这个镜像？' })
-    .getByRole('button', { name: '确认清理' })
-    .click()
+  await expect(cleanButton).toBeEnabled()
+  await activateButton(cleanButton, hasTouch)
+  await activateButton(confirmButton, hasTouch)
   await expect(unused).toHaveCount(0)
   await expect(dialog.getByText('镜像已清理，正在重新统计空间。')).toBeVisible()
   expect(writes).toBe(2)
