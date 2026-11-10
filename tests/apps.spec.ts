@@ -568,13 +568,18 @@ test('健康状态与资源采样分别展示', async ({ page }) => {
   await expect(article.getByText('运行中', { exact: true })).toBeVisible()
   await expect(article.getByText('HTTP 检查失败', { exact: true })).toBeVisible()
   await expect(article.getByText('暂时无法获取用量，稍后自动重试。')).toBeVisible()
+  await expect(article.getByRole('progressbar', { name: '内存使用率' })).toHaveCount(0)
   await expect(article.getByRole('button', { name: /^停\s*止$/ })).toBeEnabled()
   runtime.health = 'healthy'
   runtime.usage = structuredClone(initial.runtime!.usage)
   await page.getByRole('button', { name: /^刷\s*新$/ }).click()
   await expect(article.getByText('HTTP 正常', { exact: true })).toBeVisible()
   await expect(article.getByText('CPU 12.5%', { exact: true })).toBeVisible()
-  await expect(article.getByText('内存 32.0 MiB / 128 MiB', { exact: true })).toBeVisible()
+  await expect(article.getByText('32.0 MiB / 128 MiB', { exact: true })).toBeVisible()
+  await expect(article.getByRole('progressbar', { name: '内存使用率' })).toHaveAttribute(
+    'aria-valuenow',
+    '25',
+  )
   await expect(article.getByText('进程 / 线程 7', { exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
@@ -585,6 +590,46 @@ test('健康状态与资源采样分别展示', async ({ page }) => {
   await expect(article.getByText('端口可连接', { exact: true })).toBeVisible()
   await expect(article.getByText('CPU —', { exact: true })).toBeVisible()
   await expect(article.getByText('端口连通不代表业务正常')).toBeVisible()
+})
+
+// 用量以运行容器为准；详情页同步更新，停止或缺少限制时不留下误导性的占比。
+test('内存用量按实际限制刷新并处理零值与停止状态', async ({ page }) => {
+  const state = await installAPI(page, { user: true })
+  const view = state.apps[0]
+  view.app.memoryMiB = 512
+  const runtime = view.runtime!
+  await page.goto(`/apps/${view.app.id}`)
+  const article = page.getByRole('article', { name: 'Small HTTP' })
+  const meter = article.getByRole('progressbar', { name: '内存使用率' })
+  await expect(article.getByText('内存上限 512 MiB', { exact: true })).toBeVisible()
+  await expect(article.getByText('32.0 MiB / 128 MiB', { exact: true })).toBeVisible()
+  await expect(meter).toHaveAttribute('aria-valuenow', '25')
+  runtime.usage!.memoryBytes = 120 * 1024 * 1024
+  await expect(meter).toHaveAttribute('aria-valuenow', '93.8')
+  await expect(article.getByText('120 MiB / 128 MiB', { exact: true })).toBeVisible()
+  await page.screenshot({
+    path: test.info().outputPath('app-memory.png'),
+    fullPage: true,
+    animations: 'disabled',
+  })
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  await page.screenshot({
+    path: test.info().outputPath('app-memory-dark.png'),
+    fullPage: true,
+    animations: 'disabled',
+  })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  runtime.usage!.memoryBytes = 0
+  await expect(meter).toHaveAttribute('aria-valuenow', '0')
+  await expect(article.getByText('0 B / 128 MiB', { exact: true })).toBeVisible()
+  runtime.usage!.memoryLimitBytes = 0
+  await expect(article.getByText('0 B / 上限未知', { exact: true })).toBeVisible()
+  await expect(meter).toHaveCount(0)
+  runtime.state = 'exited'
+  await expect(article.getByText('已停止', { exact: true })).toBeVisible()
+  await expect(article.getByText('内存用量 ⓘ', { exact: true })).toHaveCount(0)
+  expect(state.writes).toHaveLength(0)
 })
 
 // 健康路径不能指定其他主机；留空可沿用旧应用的端口检查。
