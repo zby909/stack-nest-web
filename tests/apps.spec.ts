@@ -2,9 +2,9 @@ import { test, expect, type Locator } from '@playwright/test'
 import { admin } from './data.ts'
 import type { AppView, AppInput, AppLimitsView } from '../src/types/app.ts'
 
-// activateButton 按当前设备使用触摸或鼠标操作按钮。
-function activateButton(button: Locator, hasTouch: boolean) {
-  return hasTouch ? button.tap() : button.click()
+// activateControl 按当前设备使用触摸或鼠标操作按钮与链接。
+function activateControl(control: Locator, hasTouch: boolean) {
+  return hasTouch ? control.tap() : control.click()
 }
 
 const initial: AppView = {
@@ -481,7 +481,7 @@ test('重复环境变量和整体替换', async ({ page, hasTouch }) => {
   await page.goto('/apps')
   await page.getByRole('button', { name: /^更\s*新$/ }).click()
   const dialog = page.getByRole('dialog')
-  await activateButton(dialog.getByRole('button', { name: '添加环境变量', exact: true }), hasTouch)
+  await activateControl(dialog.getByRole('button', { name: '添加环境变量', exact: true }), hasTouch)
   await dialog.getByLabel('变量名称 2', { exact: true }).fill('SECRET')
   await dialog.getByRole('button', { name: '提交更新', exact: true }).click()
   await expect(dialog.getByRole('alert')).toContainText('SECRET 重复')
@@ -759,7 +759,7 @@ test('部署进度、失败阶段和旧代次隔离', async ({ page }) => {
 })
 
 // 详情直接访问与刷新、磁盘临界预警、日志控制在桌面和手机采用同一路由。
-test('详情路由、磁盘配额与日志快照', async ({ page }) => {
+test('详情路由、磁盘配额与日志快照', async ({ page, hasTouch }) => {
   const state = await installAPI(page)
   state.apps[0].runtime!.disk = {
     writable: { usedBytes: 950 * 1024 * 1024, limitBytes: 1024 ** 3, source: 'xfs' },
@@ -779,9 +779,10 @@ test('详情路由、磁盘配额与日志快照', async ({ page }) => {
     animations: 'disabled',
   })
   await page.getByRole('button', { name: /^日\s*志$/ }).click()
-  await page.getByRole('dialog').getByRole('link', { name: '在详情页查看日志' }).click()
-  await expect(page.getByRole('dialog')).not.toBeVisible()
+  const logDialog = page.getByRole('dialog', { name: '运行日志 · Small HTTP' })
+  await activateControl(logDialog.getByRole('link', { name: '在详情页查看日志' }), hasTouch)
   await expect(page).toHaveURL(/\/logs$/)
+  await expect(logDialog).not.toBeVisible()
   await expect(page.getByRole('checkbox', { name: '自动刷新' })).toBeChecked()
   const before = state.logReads
   state.logText = 'line-one\nerror-needle\nline-three'
@@ -877,19 +878,19 @@ test('镜像空间保护引用并处理清理冲突', async ({ page, hasTouch })
   ).toBeDisabled()
   const unused = dialog.getByRole('listitem').filter({ hasText: 'unused:v1' })
   const cleanButton = unused.getByRole('button', { name: '清理镜像' })
-  await activateButton(cleanButton, hasTouch)
+  await activateControl(cleanButton, hasTouch)
   expect(writes).toBe(0)
   const confirmButton = page
     .getByRole('dialog', { name: '确认清理这个镜像？' })
     .getByRole('button', { name: '确认清理' })
-  await activateButton(confirmButton, hasTouch)
+  await activateControl(confirmButton, hasTouch)
   await expect(dialog.getByRole('alert')).toContainText('镜像已被另一个容器引用')
   await expect(cleanButton).toBeDisabled()
   conflict = false
   await dialog.getByRole('button', { name: '刷新清单' }).click()
   await expect(cleanButton).toBeEnabled()
-  await activateButton(cleanButton, hasTouch)
-  await activateButton(confirmButton, hasTouch)
+  await activateControl(cleanButton, hasTouch)
+  await activateControl(confirmButton, hasTouch)
   await expect(unused).toHaveCount(0)
   await expect(dialog.getByText('镜像已清理，正在重新统计空间。')).toBeVisible()
   expect(writes).toBe(2)
