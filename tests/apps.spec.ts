@@ -59,6 +59,7 @@ async function installAPI(
     deploymentLogText:
       '容器状态：restarting\n重启次数：7\n启动日志：\nBOOTSTRAP_ADMIN_PASSWORD 必须是 12—128 位密码\n[已隐藏]',
     logReads: 0,
+    detailReads: 0,
     maxMemoryMiB: 1024,
     limits: {
       maxApps: 3,
@@ -119,6 +120,7 @@ async function installAPI(
     }
     if (method === 'GET' && path.startsWith('/api/apps/')) {
       const item = state.apps.find((view) => path === `/api/apps/${view.app.id}`)
+      if (item) state.detailReads++
       return item
         ? reply({
             ...item,
@@ -796,6 +798,21 @@ test('详情路由、磁盘配额与日志快照', async ({ page }) => {
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
     .toBe(true)
+})
+
+// 运行日志定时更新时，不应连带采集 Docker 资源状态。
+test('运行日志自动刷新不重复读取应用状态', async ({ page }) => {
+  await page.clock.install()
+  const state = await installAPI(page)
+  await page.goto(`/apps/${initial.app.id}/logs`)
+  const output = page.getByLabel('运行日志内容')
+  await expect(output).toHaveText(state.logText)
+  expect(state.detailReads).toBe(1)
+
+  state.logText = 'new log entry'
+  await page.clock.fastForward(6_000)
+  await expect(output).toHaveText(state.logText)
+  expect(state.detailReads).toBe(1)
 })
 
 // 不存在的 UUID 页面不可显示其他应用信息。

@@ -11,6 +11,9 @@ test('项目详情支持深链接、前后退和项目范围日志', async ({ pa
   await nav.getByRole('link', { name: '文件', exact: true }).click()
   await expect(page).toHaveURL(/\/files$/)
   await expect(page.getByRole('list', { name: '文件目录' })).toBeVisible()
+  expect(api.requests.filter(({ path }) => path === `/api/projects/${project.slug}`)).toHaveLength(
+    1,
+  )
   await page.reload()
   await expect(page.getByRole('list', { name: '文件目录' })).toBeVisible()
   await nav.getByRole('link', { name: '日志', exact: true }).click()
@@ -18,6 +21,7 @@ test('项目详情支持深链接、前后退和项目范围日志', async ({ pa
   await expect(page.getByRole('textbox', { name: '项目标识' })).not.toBeVisible()
   await page.goBack()
   await expect(page).toHaveURL(/\/files$/)
+  expect(api.requests.filter(({ path }) => path === '/api/projects')).toHaveLength(0)
   if (isMobile) await page.setViewportSize({ width: 320, height: 900 })
   for (const colorScheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme })

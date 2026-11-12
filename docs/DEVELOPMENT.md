@@ -15,11 +15,13 @@ API 以 Server 的 `/openapi.yaml` 完整契约为准；[源文件](https://gith
 
 ## 页面与状态
 
-使用 History API，支持深链接、刷新和前后退。新增页面同步维护路由及 AppNavigation 的角色入口。
+使用 History API，支持深链接、刷新和前后退。`App` 负责导航和页面外壳，静态项目状态由 `ProjectsPage` 管理，项目详情直接按标识读取。新增页面同步维护路由及 AppNavigation 的角色入口。
 
 会话使用 HttpOnly Cookie，不在浏览器保存登录令牌。编辑冲突保留输入并提示刷新。
 
 低频页面和弹窗按需加载，主题切换不重新挂载表单。
+
+自动刷新统一使用 `usePolling`：请求串行，标签隐藏时暂停定时刷新，离开页面时取消请求。
 
 ## 样式
 

@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Alert, Button, Checkbox, Input, Spin } from 'antd'
 import { appLogs, appDeploymentLogs } from '../api/apps'
 import { getErrorMessage } from '../lib/format'
+import { usePolling } from '../lib/usePolling'
 import type { AppView } from '../types/app'
 import DockerAppReport from './DockerAppReport'
 
@@ -20,45 +21,35 @@ export default function DockerAppLogPanel({
   const [text, setText] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
-  const [refresh, setRefresh] = useState(0)
   const [automatic, setAutomatic] = useState(kind === 'runtime')
   const [follow, setFollow] = useState(true)
   const [query, setQuery] = useState('')
   const [updated, setUpdated] = useState('')
   const output = useRef<HTMLPreElement>(null)
-  useEffect(() => {
-    const controller = new AbortController()
-    let timer: ReturnType<typeof setTimeout>
-    // loadLog 网络慢时等待本次完成，隐藏页面不采样，关闭页面立即取消。
-    const loadLog = async () => {
-      if (!document.hidden) {
-        setLoading(true)
-        try {
-          if (kind === 'deployment' && !generation)
-            throw new Error('无法确定任务代次，请刷新后重试')
-          const next =
-            kind === 'deployment'
-              ? await appDeploymentLogs(id, generation!, controller.signal)
-              : await appLogs(id, controller.signal)
-          if (!controller.signal.aborted) {
-            setText(next)
-            setError('')
-            setUpdated(new Date().toLocaleTimeString('zh-CN'))
-          }
-        } catch (failure) {
-          if (!controller.signal.aborted) setError(getErrorMessage(failure, '日志加载失败'))
-        } finally {
-          if (!controller.signal.aborted) setLoading(false)
+  // loadLog 读取当前日志快照，失败时保留上次成功的内容。
+  const loadLog = useCallback(
+    async (signal: AbortSignal) => {
+      setLoading(true)
+      try {
+        if (kind === 'deployment' && !generation) throw new Error('无法确定任务代次，请刷新后重试')
+        const next =
+          kind === 'deployment'
+            ? await appDeploymentLogs(id, generation!, signal)
+            : await appLogs(id, signal)
+        if (!signal.aborted) {
+          setText(next)
+          setError('')
+          setUpdated(new Date().toLocaleTimeString('zh-CN'))
         }
+      } catch (failure) {
+        if (!signal.aborted) setError(getErrorMessage(failure, '日志加载失败'))
+      } finally {
+        if (!signal.aborted) setLoading(false)
       }
-      if (automatic && !controller.signal.aborted) timer = setTimeout(() => void loadLog(), 5000)
-    }
-    void loadLog()
-    return () => {
-      controller.abort()
-      clearTimeout(timer)
-    }
-  }, [id, generation, kind, refresh, automatic])
+    },
+    [id, generation, kind],
+  )
+  const refresh = usePolling(loadLog, automatic ? 5000 : null)
   const lines = query.trim()
     ? text
         .split('\n')
@@ -84,7 +75,7 @@ export default function DockerAppLogPanel({
           onChange={(event) => setQuery(event.target.value)}
           allowClear
         />
-        <Button loading={loading} onClick={() => setRefresh((value) => value + 1)}>
+        <Button loading={loading} onClick={() => void refresh()}>
           刷新日志
         </Button>
         {kind === 'deployment' && view && (

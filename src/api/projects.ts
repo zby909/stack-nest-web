@@ -3,8 +3,8 @@ import { http } from '../lib/http'
 import axios from 'axios'
 
 // 获取静态项目列表。
-export async function listProjects() {
-  const { data } = await http.get<ProjectListResponse>('/api/projects')
+export async function listProjects(signal?: AbortSignal) {
+  const { data } = await http.get<ProjectListResponse>('/api/projects', { signal })
   return data.projects ?? []
 }
 

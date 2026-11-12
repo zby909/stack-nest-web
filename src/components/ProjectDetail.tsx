@@ -29,12 +29,14 @@ export default function ProjectDetail({
   slug,
   tab,
   canUpload,
+  refreshKey,
   onAction,
   onChanged,
 }: {
   slug: string
   tab: ProjectTab
   canUpload: boolean
+  refreshKey: number
   onAction: (project: Project, action: DetailAction) => void
   onChanged: (project: Project) => void
 }) {
@@ -51,7 +53,7 @@ export default function ProjectDetail({
           setResult({ error: getErrorMessage(failure, '项目详情加载失败') })
       })
     return () => controller.abort()
-  }, [slug, revision])
+  }, [slug, revision, refreshKey])
   const project = result?.project
   useEffect(() => {
     if (project)

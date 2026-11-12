@@ -1,4 +1,4 @@
-import { lazy, useEffect, useState } from 'react'
+import { lazy, useCallback, useState } from 'react'
 import { Alert, Button, Empty, Input, Modal, Spin, Tag, Tooltip } from 'antd'
 import { getApp, listApps, operateApp } from '../api/apps'
 import { getErrorMessage } from '../lib/format'
@@ -6,6 +6,7 @@ import type { AppAction, AppList, AppView } from '../types/app'
 import { isAdmin } from '../lib/permissions'
 import type { AuthUser } from '../types/auth'
 import { navigate } from '../lib/router'
+import { usePolling } from '../lib/usePolling'
 import RouteLink from './RouteLink'
 import DockerAppDisk from './DockerAppDisk'
 import DockerAppLogPanel from './DockerAppLogPanel'
@@ -47,27 +48,26 @@ export default function DockerApps({
   const [result, setResult] = useState<AppList | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
-  const [refresh, setRefresh] = useState(0)
+  const [revision, setRevision] = useState(0)
   const [query, setQuery] = useState('')
   const [editor, setEditor] = useState<{ target: AppView | null } | null>(null)
   const [logs, setLogs] = useState<{ view: AppView; kind: 'runtime' | 'deployment' } | null>(null)
   const [deleting, setDeleting] = useState<AppView | null>(null)
   const [cancelling, setCancelling] = useState<AppView | null>(null)
-  const [busyId, setBusyId] = useState('')
+  const [busyIds, setBusyIds] = useState(() => new Set<string>())
   const [showLimits, setShowLimits] = useState(false)
   const [showImages, setShowImages] = useState(false)
   const [history, setHistory] = useState<AppView | null>(null)
 
-  useEffect(() => {
-    const controller = new AbortController()
-    // load 每次轮询完成后才启动下次，避免网络慢时堆积请求。
-    const load = async () => {
+  // load 只读取当前路由的应用，并保留已经收到的新代次。
+  const load = useCallback(
+    async (signal: AbortSignal) => {
       try {
-        const item = detailId ? await getApp(detailId, controller.signal) : null
+        const item = detailId ? await getApp(detailId, signal) : null
         const next = item
           ? { apps: [item], available: item.available, limits: item.limits }
-          : await listApps(controller.signal)
-        if (!controller.signal.aborted) {
+          : await listApps(signal)
+        if (!signal.aborted) {
           setResult((current) => ({
             ...next,
             apps: next.apps.map((item) => {
@@ -78,7 +78,7 @@ export default function DockerApps({
           setError('')
         }
       } catch (failure) {
-        if (!controller.signal.aborted) {
+        if (!signal.aborted) {
           setError(
             getErrorMessage(
               failure,
@@ -87,25 +87,23 @@ export default function DockerApps({
           )
         }
       } finally {
-        if (!controller.signal.aborted) setLoading(false)
+        if (!signal.aborted) setLoading(false)
       }
-    }
-    let timer: ReturnType<typeof setTimeout>
-    // poll 页面隐藏时暂停获取，返回页面后继续。
-    const poll = async () => {
-      if (!document.hidden) await load()
-      if (!controller.signal.aborted) timer = setTimeout(() => void poll(), 4000)
-    }
-    void poll()
-    return () => {
-      controller.abort()
-      clearTimeout(timer)
-    }
-  }, [refresh, detailId])
+    },
+    [detailId],
+  )
+  const refresh = usePolling(
+    load,
+    !detail || detail.tab === 'overview' ? 4000 : null,
+    true,
+    revision,
+  )
 
   // act 立即展示新代次的排队状态，禁止反复提交同一操作。
   const act = async (target: AppView, action: AppAction) => {
-    setBusyId(target.app.id)
+    const id = target.app.id
+    if (busyIds.has(id)) return
+    setBusyIds((current) => new Set(current).add(id))
     setError('')
     try {
       const updated = await operateApp(target, action)
@@ -122,11 +120,15 @@ export default function DockerApps({
         if (detailId) navigate('/apps')
       }
       if (action === 'cancel') setCancelling(null)
-      setRefresh((value) => value + 1)
+      setRevision((value) => value + 1)
     } catch (failure) {
       setError(getErrorMessage(failure, `${actionLabel[action]}应用失败`))
     } finally {
-      setBusyId('')
+      setBusyIds((current) => {
+        const next = new Set(current)
+        next.delete(id)
+        return next
+      })
     }
   }
 
@@ -204,7 +206,7 @@ export default function DockerApps({
                 <Button onClick={() => setShowLimits(true)}>资源配置</Button>
               </>
             )}
-            <Button onClick={() => setRefresh((value) => value + 1)} loading={loading}>
+            <Button onClick={() => void refresh()} loading={loading}>
               刷新
             </Button>
             <Button
@@ -245,7 +247,7 @@ export default function DockerApps({
             const { app, runtime } = view
             const pending = app.status === 'pending' || app.status === 'deploying'
             const running = runtime?.state === 'running'
-            const disabled = pending || busyId === app.id || !result?.available
+            const disabled = pending || busyIds.has(app.id) || !result?.available
             return (
               <article
                 key={app.id}
@@ -261,9 +263,15 @@ export default function DockerApps({
                         <RouteLink
                           to={`/apps/${app.id}`}
                           active={false}
-                          className="hover:underline"
+                          className="hover:underline focus-visible:underline"
                         >
                           {app.name}
+                          <span
+                            aria-hidden="true"
+                            className="ml-2 text-xs font-normal text-muted underline underline-offset-4"
+                          >
+                            详情
+                          </span>
                         </RouteLink>
                       )}
                     </h2>
@@ -362,7 +370,7 @@ export default function DockerApps({
                       <Button
                         danger
                         disabled={
-                          busyId === app.id ||
+                          busyIds.has(app.id) ||
                           !result?.available ||
                           !(view.progress?.canCancel || app.status === 'pending')
                         }
@@ -432,7 +440,7 @@ export default function DockerApps({
         <DockerAppLimits
           maxMemoryMiB={result?.limits.maxMemoryMiB}
           onClose={() => setShowLimits(false)}
-          onSaved={() => setRefresh((value) => value + 1)}
+          onSaved={() => setRevision((value) => value + 1)}
         />
       )}
       {editor && result && (
@@ -440,7 +448,7 @@ export default function DockerApps({
           target={editor.target}
           maxMemoryMiB={result.limits.maxMemoryMiB}
           onClose={() => setEditor(null)}
-          onSaved={() => setRefresh((value) => value + 1)}
+          onSaved={() => setRevision((value) => value + 1)}
         />
       )}
       {logs && <DockerAppLogs target={logs.view} kind={logs.kind} onClose={() => setLogs(null)} />}
@@ -451,10 +459,10 @@ export default function DockerApps({
           okText="确认取消部署"
           cancelText="继续部署"
           okButtonProps={{ danger: true }}
-          confirmLoading={busyId === cancelling.app.id}
+          confirmLoading={busyIds.has(cancelling.app.id)}
           onOk={() => void act(cancelling, 'cancel')}
           onCancel={() => {
-            if (!busyId) setCancelling(null)
+            if (!busyIds.has(cancelling.app.id)) setCancelling(null)
           }}
         >
           <p className="text-sm leading-relaxed">
@@ -469,10 +477,10 @@ export default function DockerApps({
           okText="永久删除"
           cancelText="取消"
           okButtonProps={{ danger: true }}
-          confirmLoading={busyId === deleting.app.id}
+          confirmLoading={busyIds.has(deleting.app.id)}
           onOk={() => void act(deleting, 'delete')}
           onCancel={() => {
-            if (!busyId) setDeleting(null)
+            if (!busyIds.has(deleting.app.id)) setDeleting(null)
           }}
         >
           <p className="text-sm leading-relaxed">

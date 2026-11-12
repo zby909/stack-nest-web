@@ -70,18 +70,17 @@ export function useResumableUpload(userId: string) {
   const run = async (
     work: (signal: AbortSignal) => Promise<import('../types/project').Project>,
   ) => {
-    if (controller.current) return null
+    if (!mounted.current || controller.current) return null
     const active = new AbortController()
     controller.current = active
     setError('')
     try {
       const project = await work(active.signal)
-      if (mounted.current) {
-        setHasSession(false)
-        setRecovery(null)
-        setReadyToComplete(false)
-      }
       session.current = undefined
+      if (!mounted.current) return null
+      setHasSession(false)
+      setRecovery(null)
+      setReadyToComplete(false)
       return project
     } catch (failure) {
       if (mounted.current) {
