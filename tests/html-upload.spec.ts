@@ -36,7 +36,7 @@ async function openUpdate(page: Page, hasTouch: boolean) {
 async function openPicker(page: Page, dialog: Locator, hasTouch: boolean) {
   const [chooser] = await Promise.all([
     page.waitForEvent('filechooser'),
-    activateControl(dialog.getByRole('button', { name: /^选择或拖入/ }), hasTouch),
+    activateControl(dialog.getByText(/^选择或拖入(?:新的)? HTML/), hasTouch),
   ])
   expect(chooser.isMultiple()).toBe(false)
   return chooser
