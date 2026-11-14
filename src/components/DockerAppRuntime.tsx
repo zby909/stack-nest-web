@@ -3,7 +3,7 @@ import { formatBytes } from '../lib/format'
 import type { AppView } from '../types/app'
 
 // DockerAppRuntime 区分进程状态和服务可用性，展示当前采样而不把未知值当成零。
-export default function DockerAppRuntime({ view }: { view: AppView }) {
+export default function DockerAppRuntime({ view, compact }: { view: AppView; compact?: boolean }) {
   const { runtime } = view
   if (runtime?.state !== 'running') return null
   const usage = runtime.usage
@@ -23,11 +23,29 @@ export default function DockerAppRuntime({ view }: { view: AppView }) {
         ? 'HTTP 检查失败'
         : '端口无法连接'
       : '健康状态未知'
+  const health = <Tag color={healthy ? 'success' : unhealthy ? 'warning' : 'default'}>{label}</Tag>
+  const memory = usage
+    ? formatBytes(usage.memoryBytes) +
+      ' / ' +
+      (usage.memoryLimitBytes > 0 ? formatBytes(usage.memoryLimitBytes) : '上限未知')
+    : ''
+  const unavailable = '暂时无法获取用量，稍后自动重试。'
+  if (compact) {
+    return (
+      <div
+        className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted"
+        aria-label="应用运行情况"
+      >
+        {health}
+        {memory ? <span className="tabular-nums">内存 {memory}</span> : <span>{unavailable}</span>}
+      </div>
+    )
+  }
 
   return (
     <div className="mb-4 rounded-lg bg-subtle p-3 text-xs text-muted" aria-label="应用运行情况">
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <Tag color={healthy ? 'success' : unhealthy ? 'warning' : 'default'}>{label}</Tag>
+        {health}
         <span>{http ? 'HTTP 检查要求返回 2xx' : '端口连通不代表业务正常'}</span>
       </div>
       {usage ? (
@@ -39,10 +57,7 @@ export default function DockerAppRuntime({ view }: { view: AppView }) {
                   内存用量 ⓘ
                 </span>
               </Tooltip>
-              <span className="tabular-nums">
-                {formatBytes(usage.memoryBytes)} /{' '}
-                {usage.memoryLimitBytes > 0 ? formatBytes(usage.memoryLimitBytes) : '上限未知'}
-              </span>
+              <span className="tabular-nums">{memory}</span>
             </div>
             {memoryPercent !== undefined && (
               <Progress
@@ -68,7 +83,7 @@ export default function DockerAppRuntime({ view }: { view: AppView }) {
           </div>
         </>
       ) : (
-        <p className="text-dim">暂时无法获取用量，稍后自动重试。</p>
+        <p className="text-dim">{unavailable}</p>
       )}
     </div>
   )

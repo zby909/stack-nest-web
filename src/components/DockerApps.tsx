@@ -1,5 +1,5 @@
 import { lazy, useCallback, useState } from 'react'
-import { Alert, Button, Empty, Input, Modal, Spin, Tag, Tooltip } from 'antd'
+import { Alert, Button, Dropdown, Empty, Input, Modal, Spin, Tag, Tooltip } from 'antd'
 import { getApp, listApps, operateApp } from '../api/apps'
 import { getErrorMessage } from '../lib/format'
 import type { AppAction, AppList, AppView } from '../types/app'
@@ -178,18 +178,6 @@ export default function DockerApps({
         </div>
       )}
       {!detail && (
-        <div className="mb-4 rounded-xl border border-line bg-panel p-4 text-sm leading-relaxed text-muted">
-          单个 HTTP 服务，最多 {result?.limits.maxApps ?? '—'} 个应用，内存总额{' '}
-          {result?.limits.totalMemoryMiB ?? '—'} MiB。
-          每个应用使用独立网络；联网权限由服务器部署配置决定，浏览器通过应用域名访问。
-          {isAdmin(user) && (
-            <span className="mt-1 block text-xs">
-              管理员可管理所有应用；普通用户仅管理自己的应用。
-            </span>
-          )}
-        </div>
-      )}
-      {!detail && (
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Input.Search
             className="sm:max-w-xs"
@@ -219,6 +207,11 @@ export default function DockerApps({
             </Button>
           </div>
         </div>
+      )}
+      {!detail && result?.available && (
+        <p className="mb-3 text-xs text-muted">
+          应用上限 {result.limits.maxApps} 个 · 内存总预算 {result.limits.totalMemoryMiB} MiB
+        </p>
       )}
       {loading && !result ? (
         <div className="grid min-h-48 place-items-center">
@@ -254,8 +247,8 @@ export default function DockerApps({
                 className="min-w-0 rounded-xl border border-line bg-panel p-4 shadow-sm sm:p-5"
                 aria-label={app.name}
               >
-                <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
                     <h2 className="mb-1 text-base font-semibold break-all">
                       {detail ? (
                         app.name
@@ -275,7 +268,12 @@ export default function DockerApps({
                         </RouteLink>
                       )}
                     </h2>
-                    <p className="text-xs break-all text-dim">
+                    <p
+                      className={
+                        detail ? 'text-xs break-all text-muted' : 'truncate text-xs text-muted'
+                      }
+                      title={detail ? undefined : app.image}
+                    >
                       {app.slug} · {app.image}
                     </p>
                     {isAdmin(user) && (
@@ -283,6 +281,7 @@ export default function DockerApps({
                     )}
                   </div>
                   <Tag
+                    className="m-0 shrink-0"
                     color={
                       pending
                         ? 'processing'
@@ -304,18 +303,17 @@ export default function DockerApps({
                             : phase[app.status]}
                   </Tag>
                 </div>
-                <div className="mb-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted">
-                  <span>端口 {app.port}</span>
-                  <span>内存上限 {app.memoryMiB} MiB</span>
-                  <span>CPU 上限 {app.cpus} 核</span>
-                  <span className="break-all">数据目录：{app.dataPath || '未启用'}</span>
-                  <Tooltip title={app.envKeys.join('、') || '无环境变量'}>
-                    <span>环境变量 {app.envKeys.length} 个 ⓘ</span>
-                  </Tooltip>
-                </div>
+                {detail && (
+                  <div className="mb-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted">
+                    <span>端口 {app.port}</span>
+                    <span>内存上限 {app.memoryMiB} MiB</span>
+                    <span>CPU 上限 {app.cpus} 核</span>
+                    <span className="break-all">数据目录：{app.dataPath || '未启用'}</span>
+                  </div>
+                )}
                 <DockerAppProgress view={view} />
-                <DockerAppRuntime view={view} />
-                <DockerAppDisk view={view} />
+                <DockerAppRuntime view={view} compact={!detail} />
+                {detail && <DockerAppDisk view={view} />}
                 {detail && (
                   <dl className="mb-4 grid gap-2 rounded-lg bg-subtle p-3 text-xs sm:grid-cols-2">
                     <div>
@@ -358,7 +356,7 @@ export default function DockerApps({
                     title="容器曾超出内存限制而退出，请检查日志或调整内存。"
                   />
                 )}
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {pending && app.action === 'deploy' && (
                     <Tooltip
                       title={
@@ -368,6 +366,7 @@ export default function DockerApps({
                       }
                     >
                       <Button
+                        className="h-11 sm:h-8"
                         danger
                         disabled={
                           busyIds.has(app.id) ||
@@ -381,6 +380,7 @@ export default function DockerApps({
                     </Tooltip>
                   )}
                   <Button
+                    className="h-11 sm:h-8"
                     href={app.url}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -389,33 +389,76 @@ export default function DockerApps({
                     打开应用 ↗
                   </Button>
                   {app.error && !app.canceled && (
-                    <Button onClick={() => setLogs({ view, kind: 'deployment' })}>失败详情</Button>
+                    <Button
+                      className="h-11 sm:h-8"
+                      onClick={() => setLogs({ view, kind: 'deployment' })}
+                    >
+                      失败详情
+                    </Button>
                   )}
                   <Button
-                    onClick={() => setLogs({ view, kind: 'runtime' })}
-                    disabled={!runtime?.containerId}
-                  >
-                    日志
-                  </Button>
-                  <Button onClick={() => setHistory(view)}>部署记录</Button>
-                  <Button onClick={() => setEditor({ target: view })} disabled={disabled}>
-                    更新
-                  </Button>
-                  {!detail && (
-                    <Button onClick={() => navigate(`/apps/${app.id}/automation`)}>自动部署</Button>
-                  )}
-                  <Button
-                    onClick={() => void act(view, running ? 'stop' : 'start')}
+                    className="h-11 sm:h-8"
+                    onClick={() => setEditor({ target: view })}
                     disabled={disabled}
                   >
-                    {running ? '停止' : '启动'}
+                    更新
                   </Button>
-                  <Button onClick={() => void act(view, 'restart')} disabled={disabled || !running}>
-                    重启
-                  </Button>
-                  <Button danger onClick={() => setDeleting(view)} disabled={disabled}>
-                    删除
-                  </Button>
+                  <Dropdown
+                    trigger={['click']}
+                    menu={{
+                      items: [
+                        {
+                          key: 'logs',
+                          label: '运行日志',
+                          disabled: !runtime?.containerId,
+                          onClick: () => setLogs({ view, kind: 'runtime' }),
+                        },
+                        {
+                          key: 'history',
+                          label: '部署记录',
+                          onClick: () => setHistory(view),
+                        },
+                        ...(!detail
+                          ? [
+                              {
+                                key: 'automation',
+                                label: '自动部署',
+                                onClick: () => navigate('/apps/' + app.id + '/automation'),
+                              },
+                            ]
+                          : []),
+                        { type: 'divider' },
+                        {
+                          key: 'start-stop',
+                          label: running ? '停止' : '启动',
+                          disabled,
+                          onClick: () => void act(view, running ? 'stop' : 'start'),
+                        },
+                        {
+                          key: 'restart',
+                          label: '重启',
+                          disabled: disabled || !running,
+                          onClick: () => void act(view, 'restart'),
+                        },
+                        {
+                          key: 'delete',
+                          label: '删除应用',
+                          disabled,
+                          danger: true,
+                          onClick: () => setDeleting(view),
+                        },
+                      ],
+                    }}
+                    popupRender={(menu) => (
+                      <div className="[&_.ant-dropdown-menu-item]:min-h-11 sm:[&_.ant-dropdown-menu-item]:min-h-9">
+                        {menu}
+                      </div>
+                    )}
+                  >
+                    <Button className="h-11 sm:h-8" aria-label={'更多操作：' + app.name}>
+                      更多 ▾
+                    </Button>
+                  </Dropdown>
                 </div>
               </article>
             )

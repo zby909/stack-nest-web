@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test'
 import { test, expect } from './fixtures.ts'
+import { activateControl, waitForDialog } from './helpers.ts'
 
 const content = Buffer.concat([
   Buffer.from('<!doctype html><h1>行程</h1>'),
@@ -8,22 +9,21 @@ const content = Buffer.concat([
 const file = { name: '川西行程.html', mimeType: 'text/html', buffer: content }
 
 // updateHTML 从实际弹窗开始单 HTML 更新，保留网络故障时的上传会话。
-async function updateHTML(page: Page) {
+async function updateHTML(page: Page, hasTouch: boolean) {
   await page.goto('/projects')
-  await page
-    .locator('#projects article')
-    .getByRole('button', { name: /^更\s*新$/ })
-    .click()
+  const update = page.locator('#projects article').getByRole('button', { name: /^更\s*新$/ })
+  await activateControl(update, hasTouch)
   const dialog = page.getByRole('dialog')
+  await waitForDialog(dialog)
   await dialog.locator('input[type=file]').setInputFiles(file)
-  await dialog.getByRole('button', { name: '上传待发布版', exact: true }).click()
+  await activateControl(dialog.getByRole('button', { name: '上传待发布版', exact: true }), hasTouch)
   return dialog
 }
 
 // 模拟弱网代理只能完成较小的请求，重试应缩小分片并继续原会话。
-test('大分片中断后缩小分片，完成 3.3 MiB HTML 上传', async ({ page, api }) => {
+test('大分片中断后缩小分片，完成 3.3 MiB HTML 上传', async ({ page, api, hasTouch }) => {
   api.uploads.transportLimit = 128 * 1024
-  const dialog = await updateHTML(page)
+  const dialog = await updateHTML(page, hasTouch)
   await expect(dialog).not.toBeVisible({ timeout: 25_000 })
   expect(api.uploads.records.size).toBe(1)
   expect([...api.uploads.records.values()][0].offset).toBe(content.length)
@@ -32,7 +32,7 @@ test('大分片中断后缩小分片，完成 3.3 MiB HTML 上传', async ({ pag
 })
 
 // 模拟移动浏览器在请求失败后仍投递已排队的上传进度事件。
-test('连续失败停止重试，迟到的进度回调不能重新显示上传中', async ({ page, api }) => {
+test('连续失败停止重试，迟到的进度回调不能重新显示上传中', async ({ page, api, hasTouch }) => {
   await page.addInitScript(() => {
     const callbacks: Array<() => void> = []
     Object.assign(window, { lateUploadProgress: callbacks })
@@ -56,7 +56,7 @@ test('连续失败停止重试，迟到的进度回调不能重新显示上传�
     }
   })
   api.uploads.failOffset = 0
-  const dialog = await updateHTML(page)
+  const dialog = await updateHTML(page, hasTouch)
   await expect(dialog.getByRole('alert').filter({ hasText: '模拟暂时断网' })).toBeVisible({
     timeout: 20_000,
   })
@@ -75,9 +75,9 @@ test('连续失败停止重试，迟到的进度回调不能重新显示上传�
 })
 
 // 未提供最小分片大小的旧服务仍使用固定 4 MiB 协议。
-test('服务未声明小分片能力时仍兼容原上传协议', async ({ page, api }) => {
+test('服务未声明小分片能力时仍兼容原上传协议', async ({ page, api, hasTouch }) => {
   api.uploads.legacyChunks = true
-  const dialog = await updateHTML(page)
+  const dialog = await updateHTML(page, hasTouch)
   await expect(dialog).not.toBeVisible()
   expect(api.requests.filter((request) => request.method === 'PATCH')).toHaveLength(1)
   expect(api.uploads.publishCount).toBe(1)

@@ -1,10 +1,15 @@
-import { test, expect, type Locator } from '@playwright/test'
+import { test, expect, type Locator, type Page } from '@playwright/test'
 import { admin } from './data.ts'
 import type { AppView, AppInput, AppLimitsView } from '../src/types/app.ts'
+import { activateControl, waitForDialog, waitForMenu } from './helpers.ts'
 
-// activateControl 按当前设备使用触摸或鼠标操作按钮与链接。
-function activateControl(control: Locator, hasTouch: boolean) {
-  return hasTouch ? control.tap() : control.click()
+// appMenu 从卡片打开真实操作菜单，并定位对应项。
+async function appMenu(page: Page, article: Locator, name: string, hasTouch: boolean) {
+  await activateControl(article.getByRole('button', { name: /^更多操作：/ }), hasTouch)
+  const item = page.getByRole('menuitem', { name, exact: true })
+  await expect(item).toBeVisible()
+  await waitForMenu(page)
+  return item
 }
 
 const initial: AppView = {
@@ -189,15 +194,16 @@ async function installAPI(
 }
 
 // 候选容器已清理时仍能读取独立失败详情，旧版本继续运行时两种日志入口分别保留。
-test('失败详情不依赖候选容器存活', async ({ page }) => {
+test('失败详情不依赖候选容器存活', async ({ page, hasTouch }) => {
   const state = await installAPI(page)
   state.apps[0].app.status = 'error'
   state.apps[0].app.error = '容器反复重启（7 次），未通过就绪检查，请查看失败详情'
   state.apps[0].runtime = undefined
   await page.goto('/apps')
   const article = page.getByRole('article', { name: 'Small HTTP' })
-  await expect(article.getByRole('button', { name: /^日\s*志$/ })).toBeDisabled()
-  await article.getByRole('button', { name: '失败详情', exact: true }).click()
+  await expect(await appMenu(page, article, '运行日志', hasTouch)).toBeDisabled()
+  await page.getByRole('menu').press('Escape')
+  await activateControl(article.getByRole('button', { name: '失败详情', exact: true }), hasTouch)
   const dialog = page.getByRole('dialog')
   await expect(dialog.getByLabel('失败详情内容')).toContainText(
     'BOOTSTRAP_ADMIN_PASSWORD 必须是 12—128 位密码',
@@ -213,7 +219,7 @@ test('失败详情不依赖候选容器存活', async ({ page }) => {
   await dialog.getByRole('button', { name: '关闭', exact: true }).click()
   state.apps[0].runtime = structuredClone(initial.runtime)
   await page.getByRole('button', { name: /^刷\s*新$/ }).click()
-  await expect(article.getByRole('button', { name: /^日\s*志$/ })).toBeEnabled()
+  await expect(await appMenu(page, article, '运行日志', hasTouch)).toBeEnabled()
   await expect(article.getByRole('button', { name: '失败详情', exact: true })).toBeEnabled()
 })
 
@@ -293,21 +299,22 @@ test('取消入口遵守切换阶段及版本冲突', async ({ page }) => {
 })
 
 // 普通用户也能部署；界面提交真实配置，编辑不会回显已保存的秘密。
-test('部署与编辑应用保留敏感配置', async ({ page }) => {
+test('部署与编辑应用保留敏感配置', async ({ page, hasTouch }) => {
   const state = await installAPI(page, { empty: true, user: true })
   await page.goto('/apps')
   await expect(page.getByRole('heading', { name: '让应用运行起来。' })).toBeVisible()
-  await page.getByRole('button', { name: '＋ 部署应用' }).click()
+  await activateControl(page.getByRole('button', { name: '＋ 部署应用' }), hasTouch)
   let dialog = page.getByRole('dialog')
+  await waitForDialog(dialog)
   await dialog.getByLabel('应用名称', { exact: true }).fill('Small HTTP')
   await dialog.getByLabel('应用标识', { exact: true }).fill('small-http')
   await dialog.getByLabel('镜像地址', { exact: true }).fill('example/http:v1')
   await dialog.getByLabel('HTTP 健康检查路径（可选）', { exact: true }).fill('/health')
   await dialog.getByLabel('环境变量', { exact: true }).fill('SECRET=a=b')
-  await dialog.getByText('私有仓库（可选）', { exact: true }).click()
+  await activateControl(dialog.getByRole('button', { name: '私有仓库（可选）' }), hasTouch)
   await dialog.getByLabel('仓库用户名', { exact: true }).fill('test-user')
   await dialog.getByLabel('仓库密码 / 访问令牌', { exact: true }).fill('fake-registry-secret')
-  await dialog.getByRole('button', { name: '开始部署', exact: true }).click()
+  await activateControl(dialog.getByRole('button', { name: '开始部署', exact: true }), hasTouch)
   await expect(dialog).not.toBeVisible()
   expect(state.writes[0].body).toMatchObject({
     env: { SECRET: 'a=b' },
@@ -317,17 +324,20 @@ test('部署与编辑应用保留敏感配置', async ({ page }) => {
     startupTimeoutSeconds: 60,
   })
   await expect(page.getByRole('article', { name: 'Small HTTP' })).toBeVisible()
-  await page.getByRole('button', { name: /^更\s*新$/ }).click()
+  await activateControl(page.getByRole('button', { name: /^更\s*新$/ }), hasTouch)
   dialog = page.getByRole('dialog')
+  await waitForDialog(dialog)
   await expect(dialog.getByLabel('HTTP 健康检查路径（可选）', { exact: true })).toHaveValue(
     '/health',
   )
   await expect(dialog.getByLabel('变量名称 1', { exact: true })).toHaveValue('SECRET')
   await expect(dialog.getByLabel('SECRET 操作', { exact: true })).toHaveCount(1)
   await expect(dialog.locator('input[type="password"]')).toHaveCount(0)
-  await dialog.getByText('私有仓库（已有凭据，留空保留）', { exact: true }).click()
+  const registry = dialog.getByRole('button', { name: '私有仓库（已有凭据，留空保留）' })
+  await activateControl(registry, hasTouch)
+  await expect(registry).toHaveAttribute('aria-expanded', 'true')
   await expect(dialog.getByLabel('仓库密码 / 访问令牌', { exact: true })).toHaveValue('')
-  await dialog.getByRole('button', { name: '提交更新', exact: true }).click()
+  await activateControl(dialog.getByRole('button', { name: '提交更新', exact: true }), hasTouch)
   await expect(dialog).not.toBeVisible()
   expect(state.writes[1].body).toMatchObject({
     replaceEnv: false,
@@ -517,7 +527,7 @@ test('1 GiB 应用内存与越界输入', async ({ page }) => {
 })
 
 // 删除必须确认；取消不发请求，日志只按文本呈现，旧页面也能看到排队状态。
-test('应用日志安全与删除确认', async ({ page }) => {
+test('应用日志安全与删除确认', async ({ page, hasTouch }) => {
   const state = await installAPI(page)
   await page.goto('/apps')
   const article = page.getByRole('article', { name: 'Small HTTP' })
@@ -525,19 +535,23 @@ test('应用日志安全与删除确认', async ({ page }) => {
     'href',
     initial.app.url,
   )
-  await article.getByRole('button', { name: /^日\s*志$/ }).click()
+  await activateControl(await appMenu(page, article, '运行日志', hasTouch), hasTouch)
   let dialog = page.getByRole('dialog')
   await expect(
     dialog.getByText('<script>window.logExecuted = true</script>', { exact: false }),
   ).toBeVisible()
   expect(await page.evaluate(() => 'logExecuted' in window)).toBe(false)
-  await dialog.getByRole('button', { name: '关闭', exact: true }).click()
-  await article.getByRole('button', { name: /^删\s*除$/ }).click()
+  await waitForDialog(dialog)
+  await activateControl(dialog.getByRole('button', { name: '关闭', exact: true }), hasTouch)
+  await expect(dialog).not.toBeVisible()
+  await activateControl(await appMenu(page, article, '删除应用', hasTouch), hasTouch)
   dialog = page.getByRole('dialog')
   await expect(dialog.getByText(/持久化数据/)).toBeVisible()
-  await dialog.getByRole('button', { name: /^取\s*消$/ }).click()
+  await waitForDialog(dialog)
+  await activateControl(dialog.getByRole('button', { name: /^取\s*消$/ }), hasTouch)
+  await expect(dialog).not.toBeVisible()
   expect(state.writes).toHaveLength(0)
-  await article.getByRole('button', { name: /^停\s*止$/ }).click()
+  await activateControl(await appMenu(page, article, '停止', hasTouch), hasTouch)
   await expect(article.getByText('等待执行', { exact: true })).toBeVisible()
   await expect(article.getByRole('button', { name: /^更\s*新$/ })).toBeDisabled()
   expect(state.writes[0].body).toEqual({ action: 'stop', generation: 1 })
@@ -565,7 +579,7 @@ test('应用输入边界与手机布局', async ({ page }) => {
 })
 
 // HTTP 异常不会伪装成停止；采样缺失不能展示为零，恢复后显示当前用量。
-test('健康状态与资源采样分别展示', async ({ page }) => {
+test('健康状态与资源采样分别展示', async ({ page, hasTouch }) => {
   const state = await installAPI(page)
   const runtime = state.apps[0].runtime!
   runtime.health = 'unhealthy'
@@ -576,11 +590,17 @@ test('健康状态与资源采样分别展示', async ({ page }) => {
   await expect(article.getByText('HTTP 检查失败', { exact: true })).toBeVisible()
   await expect(article.getByText('暂时无法获取用量，稍后自动重试。')).toBeVisible()
   await expect(article.getByRole('progressbar', { name: '内存使用率' })).toHaveCount(0)
-  await expect(article.getByRole('button', { name: /^停\s*止$/ })).toBeEnabled()
+  await expect(await appMenu(page, article, '停止', hasTouch)).toBeEnabled()
+  await page.getByRole('menu').press('Escape')
   runtime.health = 'healthy'
   runtime.usage = structuredClone(initial.runtime!.usage)
   await page.getByRole('button', { name: /^刷\s*新$/ }).click()
   await expect(article.getByText('HTTP 正常', { exact: true })).toBeVisible()
+  await expect(article.getByText('内存 32.0 MiB / 128 MiB', { exact: true })).toBeVisible()
+  await expect(article.getByLabel('应用磁盘用量')).toHaveCount(0)
+  await expect(article.getByText('CPU 12.5%', { exact: true })).toHaveCount(0)
+  await activateControl(article.getByRole('link', { name: 'Small HTTP', exact: true }), hasTouch)
+  await expect(page).toHaveURL(new RegExp('/apps/' + initial.app.id + '$'))
   await expect(article.getByText('CPU 12.5%', { exact: true })).toBeVisible()
   await expect(article.getByText('32.0 MiB / 128 MiB', { exact: true })).toBeVisible()
   await expect(article.getByRole('progressbar', { name: '内存使用率' })).toHaveAttribute(
@@ -593,7 +613,6 @@ test('健康状态与资源采样分别展示', async ({ page }) => {
   )
   runtime.healthCheck = 'tcp'
   runtime.usage!.cpuPercent = undefined
-  await page.getByRole('button', { name: /^刷\s*新$/ }).click()
   await expect(article.getByText('端口可连接', { exact: true })).toBeVisible()
   await expect(article.getByText('CPU —', { exact: true })).toBeVisible()
   await expect(article.getByText('端口连通不代表业务正常')).toBeVisible()
@@ -767,7 +786,8 @@ test('详情路由、磁盘配额与日志快照', async ({ page, hasTouch }) =>
     sampledAt: new Date().toISOString(),
   }
   await page.goto('/apps')
-  await page.getByRole('link', { name: 'Small HTTP', exact: true }).click()
+  const article = page.getByRole('article', { name: 'Small HTTP' })
+  await activateControl(article.getByRole('link', { name: 'Small HTTP', exact: true }), hasTouch)
   await expect(page).toHaveURL(new RegExp(`/apps/${initial.app.id}$`))
   await expect(page.getByText('接近配额上限，继续写入可能失败。')).toBeVisible()
   await expect(page.getByText('用量暂不可用')).toBeVisible()
@@ -778,8 +798,9 @@ test('详情路由、磁盘配额与日志快照', async ({ page, hasTouch }) =>
     fullPage: true,
     animations: 'disabled',
   })
-  await page.getByRole('button', { name: /^日\s*志$/ }).click()
+  await activateControl(await appMenu(page, article, '运行日志', hasTouch), hasTouch)
   const logDialog = page.getByRole('dialog', { name: '运行日志 · Small HTTP' })
+  await waitForDialog(logDialog)
   await activateControl(logDialog.getByRole('link', { name: '在详情页查看日志' }), hasTouch)
   await expect(page).toHaveURL(/\/logs$/)
   await expect(logDialog).not.toBeVisible()
@@ -898,7 +919,7 @@ test('镜像空间保护引用并处理清理冲突', async ({ page, hasTouch })
 })
 
 // 历史记录与当前运行容器分离，失败信息作为文本渲染并覆盖空态与刷新失败。
-test('部署记录保留失败摘要并安全展示', async ({ page }) => {
+test('部署记录保留失败摘要并安全展示', async ({ page, hasTouch }) => {
   await installAPI(page, { user: true })
   let mode = 'records'
   await page.route('**/api/apps/*/deployments', async (route) => {
@@ -926,7 +947,8 @@ test('部署记录保留失败摘要并安全展示', async ({ page }) => {
     })
   })
   await page.goto('/apps')
-  await page.getByRole('button', { name: '部署记录', exact: true }).click()
+  const article = page.getByRole('article', { name: 'Small HTTP' })
+  await activateControl(await appMenu(page, article, '部署记录', hasTouch), hasTouch)
   const dialog = page.getByRole('dialog')
   await expect(dialog.getByText('部署失败', { exact: true })).toBeVisible()
   await expect(dialog.getByText('example/http:failed', { exact: true })).toBeVisible()

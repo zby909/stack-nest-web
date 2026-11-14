@@ -1,6 +1,24 @@
 import type { Locator, Page } from '@playwright/test'
 import { expect } from './fixtures.ts'
 
+// activateControl 按设备使用真实点按或鼠标点击。
+export function activateControl(control: Locator, hasTouch: boolean) {
+  return hasTouch ? control.tap() : control.click()
+}
+
+// waitForDialog 等弹窗的缩放动画结束，避免触屏坐标随面板移动。
+export async function waitForDialog(dialog: Locator) {
+  await expect(dialog).toBeVisible()
+  await expect(dialog).not.toHaveClass(/\bant-zoom-(?:appear|enter)(?:-\w+)?\b/)
+}
+
+// waitForMenu 等菜单定位完成，供鼠标与触屏共用。
+export async function waitForMenu(page: Page) {
+  await expect(page.locator('.ant-dropdown:visible')).not.toHaveClass(
+    /\bant-slide-\w+-(?:appear|enter)(?:-\w+)?\b/,
+  )
+}
+
 // openMenu 使用实际项目菜单打开弹窗，兼容触屏与桌面。
 export async function openMenu(page: Page, label: string) {
   await page
@@ -9,10 +27,7 @@ export async function openMenu(page: Page, label: string) {
     .click()
   const item = page.getByRole('menuitem', { name: label, exact: true })
   await expect(item).toBeVisible()
-  // 等浮层入场结束后点击，避免动画期间的坐标落到相邻菜单项。
-  await expect(page.locator('.ant-dropdown:visible')).not.toHaveClass(
-    /\bant-slide-\w+-(?:appear|enter)(?:-\w+)?\b/,
-  )
+  await waitForMenu(page)
   await item.click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
@@ -41,10 +56,7 @@ export async function chooseTheme(page: Page, label: string) {
   await page.getByRole('button', { name: /^切换主题/ }).click()
   const item = page.getByRole('menuitem', { name: label, exact: true })
   await expect(item).toBeVisible()
-  // 等菜单入场完成，避免触屏下自动滚动与浮层重新定位竞争。
-  await expect(page.locator('.ant-dropdown:visible')).not.toHaveClass(
-    /\bant-slide-\w+-(?:appear|enter)(?:-\w+)?\b/,
-  )
+  await waitForMenu(page)
   await item.click()
   await expect(page.getByRole('button', { name: `切换主题，当前：${label}` })).toBeVisible()
 }
