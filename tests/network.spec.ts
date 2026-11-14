@@ -14,8 +14,10 @@ test('超管配置容器网络并确认保存', async ({ page, api, hasTouch }) 
   await page.getByRole('textbox', { name: '额外禁止网段' }).fill('192.168.2.0/24\n192.168.50.0/24')
   await page.getByRole('textbox', { name: '公网 DNS' }).fill('1.1.1.1\n8.8.8.8')
   const addException = page.getByRole('button', { name: '添加允许例外' })
-  await addException.scrollIntoViewIfNeeded()
-  await expect(addException).toBeInViewport()
+  // 避免页面平滑滚动与移动端点按坐标在滚动中变化。
+  await addException.evaluate((button) =>
+    button.scrollIntoView({ block: 'center', behavior: 'instant' }),
+  )
   await activateControl(addException, hasTouch)
   await page.getByRole('textbox', { name: '例外 1 目标 IP' }).fill('192.168.2.3')
   await page.getByRole('spinbutton', { name: '例外 1 端口' }).fill('5432')
