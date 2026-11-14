@@ -1,29 +1,37 @@
 import { test, expect } from './fixtures.ts'
-import { assertFits } from './helpers.ts'
+import { activateControl, assertFits, waitForDialog } from './helpers.ts'
 
 // 超管保存前核对策略，取消不写入；保存后展示实际生效范围和 DNS 提示。
-test('超管配置容器网络并确认保存', async ({ page, api }) => {
+test('超管配置容器网络并确认保存', async ({ page, api, hasTouch }) => {
   api.role = 'superadmin'
   await page.goto('/network')
   await expect(page.locator('nav:visible a[href="/network"]')).toBeVisible()
   await expect(page.getByRole('heading', { name: '配置容器网络访问' })).toBeVisible()
-  await page.getByRole('button', { name: '高级设置：手动网段、DNS和端口例外' }).click()
+  const advanced = page.getByRole('button', { name: '高级设置：手动网段、DNS和端口例外' })
+  await activateControl(advanced, hasTouch)
+  await expect(advanced).toHaveAttribute('aria-expanded', 'true')
   await expect(page.getByRole('textbox', { name: '额外禁止网段' })).toHaveValue('192.168.2.0/24')
   await page.getByRole('textbox', { name: '额外禁止网段' }).fill('192.168.2.0/24\n192.168.50.0/24')
   await page.getByRole('textbox', { name: '公网 DNS' }).fill('1.1.1.1\n8.8.8.8')
-  await page.getByRole('button', { name: '添加允许例外' }).click()
+  const addException = page.getByRole('button', { name: '添加允许例外' })
+  await addException.scrollIntoViewIfNeeded()
+  await expect(addException).toBeInViewport()
+  await activateControl(addException, hasTouch)
   await page.getByRole('textbox', { name: '例外 1 目标 IP' }).fill('192.168.2.3')
   await page.getByRole('spinbutton', { name: '例外 1 端口' }).fill('5432')
-  await page.getByRole('button', { name: '保存网络配置', exact: true }).click()
-  let dialog = page.getByRole('dialog')
+  const save = page.getByRole('button', { name: '保存网络配置', exact: true })
+  await activateControl(save, hasTouch)
+  const dialog = page.getByRole('dialog')
+  await waitForDialog(dialog)
   await expect(dialog.getByText('192.168.2.3 · TCP/5432', { exact: true })).toBeVisible()
-  await dialog.getByRole('button', { name: /^取\s*消$/ }).click()
+  await activateControl(dialog.getByRole('button', { name: /^取\s*消$/ }), hasTouch)
+  await expect(dialog).not.toBeVisible()
   expect(
     api.requests.filter((request) => request.path === '/api/network' && request.method === 'PUT'),
   ).toHaveLength(0)
-  await page.getByRole('button', { name: '保存网络配置', exact: true }).click()
-  dialog = page.getByRole('dialog')
-  await dialog.getByRole('button', { name: '确认保存并应用' }).click()
+  await activateControl(save, hasTouch)
+  await waitForDialog(dialog)
+  await activateControl(dialog.getByRole('button', { name: '确认保存并应用' }), hasTouch)
   await expect(dialog).not.toBeVisible()
   await expect(page.getByText(/DNS 配置将在重新部署应用后生效/)).toBeVisible()
   await expect(page.getByLabel('实际拦截网段')).toContainText('192.168.50.0/24')

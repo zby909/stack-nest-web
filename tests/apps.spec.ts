@@ -681,12 +681,13 @@ test('健康检查路径拒绝外部地址并支持留空', async ({ page }) => 
 })
 
 // 只有超管能打开实例预算，冲突保留输入，重新加载后再保存使用新版本。
-test('超管资源配置与版本冲突', async ({ page }) => {
+test('超管资源配置与版本冲突', async ({ page, hasTouch }) => {
   const state = await installAPI(page, { superadmin: true })
   state.maxMemoryMiB = 896
   await page.goto('/apps')
-  await page.getByRole('button', { name: '资源配置', exact: true }).click()
+  await activateControl(page.getByRole('button', { name: '资源配置', exact: true }), hasTouch)
   const dialog = page.getByRole('dialog')
+  await waitForDialog(dialog)
   await expect(dialog.getByText(/单个应用内存范围为 64–896 MiB/)).toBeVisible()
   await expect(dialog.getByText('已预留：1 个应用，128 MiB 内存。')).toBeVisible()
   await page.screenshot({
@@ -697,18 +698,19 @@ test('超管资源配置与版本冲突', async ({ page }) => {
   await dialog.getByLabel('应用总数上限', { exact: true }).fill('6')
   await dialog.getByLabel('应用内存总预算（MiB）', { exact: true }).fill('1536')
   state.limits.revision = 2
-  await dialog.getByRole('button', { name: '保存配置', exact: true }).click()
+  const save = dialog.getByRole('button', { name: '保存配置', exact: true })
+  await activateControl(save, hasTouch)
   await expect(dialog.getByText(/资源配置已被更新/)).toBeVisible()
   await expect(dialog.getByLabel('应用总数上限', { exact: true })).toHaveValue('6')
   expect(state.writes[0].body).toEqual({ maxApps: 6, totalMemoryMiB: 1536, expectedRevision: 1 })
-  await dialog.getByRole('button', { name: '重新加载', exact: true }).click()
+  await activateControl(dialog.getByRole('button', { name: '重新加载', exact: true }), hasTouch)
   await expect(dialog.getByLabel('应用总数上限', { exact: true })).toHaveValue('3')
   await dialog.getByLabel('应用总数上限', { exact: true }).fill('6')
   await dialog.getByLabel('应用内存总预算（MiB）', { exact: true }).fill('1536')
-  await dialog.getByRole('button', { name: '保存配置', exact: true }).click()
+  await activateControl(save, hasTouch)
   await expect(dialog).not.toBeVisible()
   expect(state.writes[1].body).toEqual({ maxApps: 6, totalMemoryMiB: 1536, expectedRevision: 2 })
-  await expect(page.getByText(/最多 6 个应用，内存总额 1536 MiB/)).toBeVisible()
+  await expect(page.getByText('应用上限 6 个 · 内存总预算 1536 MiB', { exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   )
