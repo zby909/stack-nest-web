@@ -7,9 +7,9 @@
   <p><strong>StackNest 管理界面，支持桌面和手机。</strong></p>
 
   <p>
-    <a href="https://github.com/zby909/stack-nest-server/blob/main/docs/INSTALL_RELEASE.md"><strong>部署完整平台 →</strong></a> ·
-    <a href="docs/DEVELOPMENT.md">前端开发</a> ·
-    <a href="https://github.com/zby909/stack-nest-server/blob/main/docs/USAGE.md">使用指南</a> ·
+    <a href="https://github.com/zby909/stack-nest-server/blob/main/docs/deployment/INSTALL_RELEASE.md"><strong>部署完整平台 →</strong></a> ·
+    <a href="docs/README.md">前端文档</a> ·
+    <a href="https://github.com/zby909/stack-nest-server/blob/main/docs/usage/README.md">使用指南</a> ·
     <a href="https://github.com/zby909/stack-nest-server">Server 仓库</a>
   </p>
 
@@ -44,7 +44,7 @@
 
 ## 本地开发
 
-准备 **Node.js 24** 和 `package.json` 指定的 pnpm，先启动 [Go API 与开发数据库](https://github.com/zby909/stack-nest-server/blob/main/docs/DEVELOPMENT.md)。
+准备 **Node.js 24** 和 `package.json` 指定的 pnpm，先启动 [Go API 与开发数据库](https://github.com/zby909/stack-nest-server/blob/main/docs/architecture/DEVELOPMENT.md)。
 
 ```bash
 pnpm install --frozen-lockfile
@@ -68,6 +68,6 @@ pnpm build
 **React · TypeScript · Vite · Tailwind CSS 4 · Ant Design · Axios**
 
 - 功能建议与整体设计在 [Server Issues](https://github.com/zby909/stack-nest-server/issues)讨论；界面改动见 [贡献指南](CONTRIBUTING.md)。
-- 组件分工、前后端连接与维护方式见 [架构说明](https://github.com/zby909/stack-nest-server/blob/main/docs/ARCHITECTURE.md)。
+- 组件分工、前后端连接与维护方式见 [架构说明](https://github.com/zby909/stack-nest-server/blob/main/docs/architecture/README.md)。
 
 Copyright 2026 zby909 and StackNest contributors. 使用 [Apache-2.0](LICENSE) 许可，第三方内容保留原许可，见 [NOTICE](NOTICE)。

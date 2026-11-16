@@ -162,7 +162,7 @@ export default function DeployTokens({
       </div>
       <p className="mb-4 text-xs text-muted">
         <a
-          href={`https://github.com/zby909/stack-nest-server/blob/main/docs/${isApp ? 'DOCKER_AUTOMATION' : 'AUTOMATION'}.md`}
+          href={`https://github.com/zby909/stack-nest-server/blob/main/docs/usage/${isApp ? 'DOCKER_AUTOMATION' : 'AUTOMATION'}.md`}
           target="_blank"
           rel="noopener noreferrer"
           className="underline"

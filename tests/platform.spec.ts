@@ -53,7 +53,12 @@ test('超管手动诊断、重复点击和失败恢复', async ({ page, api }) =
 // 普通管理员只能读取版本，不会自动触发超管诊断接口。
 test('管理员只能看版本，无法看到诊断入口', async ({ page, api }) => {
   await page.goto('/system')
-  await expect(page.getByRole('region', { name: '平台版本' })).toBeVisible()
+  const version = page.getByRole('region', { name: '平台版本' })
+  await expect(version).toBeVisible()
+  await expect(version.getByRole('link', { name: /升级说明/ })).toHaveAttribute(
+    'href',
+    'https://github.com/zby909/stack-nest-server/blob/main/docs/deployment/OPERATIONS.md#升级',
+  )
   await expect(page.getByRole('region', { name: '平台诊断' })).toHaveCount(0)
   expect(api.requests.some((request) => request.path === '/api/system/diagnostics')).toBe(false)
 })

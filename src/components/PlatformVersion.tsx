@@ -82,7 +82,7 @@ export default function PlatformVersion() {
       <p className="mt-4 text-xs leading-relaxed text-muted">
         升级前保留完整备份，使用同一发布包更新镜像并执行数据库迁移。{' '}
         <a
-          href="https://github.com/zby909/stack-nest-server/blob/main/docs/OPERATIONS.md#升级"
+          href="https://github.com/zby909/stack-nest-server/blob/main/docs/deployment/OPERATIONS.md#升级"
           target="_blank"
           rel="noreferrer"
           className="underline"

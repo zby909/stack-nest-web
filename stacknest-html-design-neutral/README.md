@@ -19,4 +19,4 @@ web/src/App.tsx
 web/src/index.css
 ```
 
-实际能力与部署方式见 [项目介绍](../README.md)和 [Server 产品范围](https://github.com/zby909/stack-nest-server/blob/main/docs/REQUIREMENTS.md)。
+实际能力与部署方式见 [项目介绍](../README.md)和 [Server 产品范围](https://github.com/zby909/stack-nest-server/blob/main/docs/overview/README.md)。

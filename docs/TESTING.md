@@ -39,7 +39,7 @@ WebKit 与设备模拟不能替代真实 iPhone 的系统文件选择器、输�
 
 例如故意丢弃分片响应，再检查浏览器查询服务端进度后继续，避免重复上传或发布。
 
-发布镜像时还会运行 `scripts/release-smoke.ts`：通过真实 Nginx、Go、PostgreSQL 和临时 SMTP 收件箱，验证邮件登录、分片上传、单 HTML、预览、发布、更新及回退。由后端 `deploy/check_release.py` 创建和清理隔离容器，命令见[发布指南](https://github.com/zby909/stack-nest-server/blob/main/docs/RELEASING.md)。生产邮箱、DNS 和 HTTPS 仍需部署后验收。
+发布镜像时还会运行 `scripts/release-smoke.ts`：通过真实 Nginx、Go、PostgreSQL 和临时 SMTP 收件箱，验证邮件登录、分片上传、单 HTML、预览、发布、更新及回退。由后端 `deploy/check_release.py` 创建和清理隔离容器，命令见[发布指南](https://github.com/zby909/stack-nest-server/blob/main/docs/architecture/RELEASING.md)。生产邮箱、DNS 和 HTTPS 仍需部署后验收。
 
 ## 文档截图
 
@@ -53,4 +53,4 @@ pnpm exec playwright show-report
 
 报告在 `playwright-report/`，截图和轨迹在 `test-results/`。默认不自动重试。
 
-GitHub Actions 执行同一套检查，失败报告保留 7 天。[后端集成测试](https://github.com/zby909/stack-nest-server/blob/main/docs/DEVELOPMENT.md#检查与测试)
+GitHub Actions 执行同一套检查，失败报告保留 7 天。[后端集成测试](https://github.com/zby909/stack-nest-server/blob/main/docs/architecture/DEVELOPMENT.md#检查与测试)

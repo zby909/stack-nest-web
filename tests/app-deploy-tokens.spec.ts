@@ -44,6 +44,10 @@ test('应用自动部署明确授权，一次性展示凭据并支持撤销与�
   })
   await page.goto(`/apps/${appId}/automation`)
   await expect(page.getByRole('heading', { name: 'CI 示例应用 · 自动部署' })).toBeVisible()
+  await expect(page.getByRole('link', { name: /命令行与 GitHub Actions 教程/ })).toHaveAttribute(
+    'href',
+    'https://github.com/zby909/stack-nest-server/blob/main/docs/usage/DOCKER_AUTOMATION.md',
+  )
   await page.route('**/api/deploy-tools/skill', async (route) =>
     route.fulfill({
       status: 200,

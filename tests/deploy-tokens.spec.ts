@@ -30,6 +30,10 @@ test('项目部署 Token 默认仅预览且不持久保存明文', async ({ page
     return route.fulfill({ json: { tokens } })
   })
   await page.goto(`/projects/${original.slug}/settings`)
+  await expect(page.getByRole('link', { name: /命令行与 GitHub Actions 教程/ })).toHaveAttribute(
+    'href',
+    'https://github.com/zby909/stack-nest-server/blob/main/docs/usage/AUTOMATION.md',
+  )
   await page.getByRole('button', { name: '创建部署 Token' }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog.getByRole('checkbox', { name: '允许正式发布' })).not.toBeChecked()

@@ -1,6 +1,6 @@
 # 构建与部署
 
-使用平台按 [Docker 部署教程](https://github.com/zby909/stack-nest-server/blob/main/docs/INSTALL_RELEASE.md)操作。本文用于前端开发者。
+使用平台按 [Docker 部署教程](https://github.com/zby909/stack-nest-server/blob/main/docs/deployment/INSTALL_RELEASE.md)操作。本文用于前端开发者。
 
 ## 本地构建
 
@@ -35,9 +35,9 @@ docker compose up -d --build --no-deps nginx
 docker compose exec -T nginx nginx -t
 ```
 
-同时修改 API 或迁移时，按 [完整升级](https://github.com/zby909/stack-nest-server/blob/main/docs/OPERATIONS.md#升级)更新平台。版本镜像部署使用配套发布物，不执行源码 build。
+同时修改 API 或迁移时，按 [完整升级](https://github.com/zby909/stack-nest-server/blob/main/docs/deployment/OPERATIONS.md#升级)更新平台。版本镜像部署使用配套发布物，不执行源码 build。
 
-镜像使用 Server 的 Nginx 模板和运行配置，通过平台 Compose 启动。[请求分发原理](https://github.com/zby909/stack-nest-server/blob/main/docs/ARCHITECTURE.md)
+镜像使用 Server 的 Nginx 模板和运行配置，通过平台 Compose 启动。[请求分发原理](https://github.com/zby909/stack-nest-server/blob/main/docs/architecture/README.md)
 
 ## 排查
 
@@ -50,4 +50,4 @@ docker compose exec -T nginx nginx -t
 | 静态资源 404   | 使用返回的独立站点地址                 |
 | 页面仍旧       | 完整构建产物及浏览器 / Cloudflare 缓存 |
 
-[回归测试](TESTING.md) · [平台排障](https://github.com/zby909/stack-nest-server/blob/main/docs/OPERATIONS.md#状态与排障)
+[回归测试](TESTING.md) · [平台排障](https://github.com/zby909/stack-nest-server/blob/main/docs/deployment/OPERATIONS.md#状态与排障)

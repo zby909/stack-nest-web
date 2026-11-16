@@ -6,7 +6,7 @@
 
 - 开发、目录与样式：[开发约定](docs/DEVELOPMENT.md)。
 - 行为变更：[浏览器回归](docs/TESTING.md)；构建部署：[构建配置](docs/DEPLOYMENT.md)。
-- 功能边界：[产品范围](https://github.com/zby909/stack-nest-server/blob/main/docs/REQUIREMENTS.md)；接口以 Server 的 `openapi/` 契约为准，本地有仓库时直接读取。
+- 功能边界：[产品范围](https://github.com/zby909/stack-nest-server/blob/main/docs/overview/README.md)；接口以 Server 的 `openapi/` 契约为准，本地有仓库时直接读取。
 
 ## 修改约定
 
