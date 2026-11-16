@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>StackNest</title>
+  <rect x=".75" y=".75" width="62.5" height="62.5" rx="14.25" fill="#142033" stroke="#34455f" stroke-width="1.5"/>
+  <path d="M32 14 51 25 32 36 13 25Z" fill="#eff5ff" stroke="#eff5ff" stroke-width="3" stroke-linejoin="round"/>
+  <path d="m14 37 18 11 18-11" fill="none" stroke="#80adff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

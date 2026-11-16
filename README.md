@@ -4,8 +4,7 @@
     <img src="docs/images/stacknest-banner.svg" alt="StackNest — Your projects. Your server." width="1280">
   </picture>
 
-  <p><strong>StackNest Web · 项目管理，从一个清晰的界面开始。</strong></p>
-  <p>静态站点、Docker 应用、成员与服务器状态，在桌面和手机上都能管理。</p>
+  <p><strong>StackNest 管理界面，支持桌面和手机。</strong></p>
 
   <p>
     <a href="https://github.com/zby909/stack-nest-server/blob/main/docs/INSTALL_RELEASE.md"><strong>部署完整平台 →</strong></a> ·
@@ -64,13 +63,10 @@ pnpm build
 
 `pnpm check` 包含类型检查、Lint，以及 Chrome 和 iPhone / WebKit 浏览器回归。构建输出为 `dist/`，生产由平台 Nginx 提供。[测试说明](docs/TESTING.md) · [构建配置](docs/DEPLOYMENT.md)
 
-文档截图可用 `pnpm screenshots` 重新生成，使用本地演示数据。
-
 ## 技术与协作
 
 **React · TypeScript · Vite · Tailwind CSS 4 · Ant Design · Axios**
 
-- 整套平台使用 [Server 的 Docker 部署方案](https://github.com/zby909/stack-nest-server/blob/main/docs/INSTALL_RELEASE.md)。
 - 功能建议与整体设计在 [Server Issues](https://github.com/zby909/stack-nest-server/issues)讨论；界面改动见 [贡献指南](CONTRIBUTING.md)。
 - 组件分工、前后端连接与维护方式见 [架构说明](https://github.com/zby909/stack-nest-server/blob/main/docs/ARCHITECTURE.md)。
 

@@ -71,9 +71,7 @@ function Login({ onLogin }: LoginProps) {
     <main className="flex min-h-dvh items-center justify-center bg-canvas px-4 py-10">
       <section className="page-enter w-full max-w-md rounded-panel border border-line bg-panel p-5 shadow-panel sm:p-9">
         <div className="mb-7 flex items-center justify-between gap-3">
-          <div className="grid size-10 place-items-center rounded-xl bg-ink text-lg font-bold text-panel">
-            S
-          </div>
+          <img src="/stacknest.svg" alt="" width="40" height="40" className="size-10" />
           <ThemeSwitcher />
         </div>
         <h1 className="text-2xl font-bold tracking-tight">登录 StackNest</h1>

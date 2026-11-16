@@ -32,9 +32,7 @@ export default function AppNavigation({
     <>
       <aside className="sticky top-0 hidden h-dvh flex-col gap-6 border-r border-line bg-sidebar px-4 py-5.5 desktop:flex">
         <div className="flex items-center gap-3 px-1.5 pt-1 pb-3">
-          <div className="grid size-8 shrink-0 place-items-center rounded-lg bg-ink font-bold text-panel">
-            S
-          </div>
+          <img src="/stacknest.svg" alt="" width="32" height="32" className="size-8 shrink-0" />
           <div>
             <strong className="block text-base font-bold">StackNest</strong>
             <span className="mt-0.5 block text-xs text-dim">项目控制中心</span>
@@ -69,9 +67,7 @@ export default function AppNavigation({
       <header className="sticky top-0 z-20 border-b border-line bg-sidebar pt-[max(0.75rem,env(safe-area-inset-top))] pr-[max(1rem,env(safe-area-inset-right))] pb-3 pl-[max(1rem,env(safe-area-inset-left))] desktop:hidden">
         <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2.5">
-            <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-ink font-bold text-panel">
-              S
-            </div>
+            <img src="/stacknest.svg" alt="" width="36" height="36" className="size-9 shrink-0" />
             <div className="min-w-0">
               <strong className="block text-sm font-bold">StackNest</strong>
               <span className="mt-0.5 block truncate text-xs text-muted" title={user.email}>
