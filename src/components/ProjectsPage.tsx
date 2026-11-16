@@ -400,6 +400,10 @@ export default function ProjectsPage({ user }: { user: AuthUser }) {
               <div className="mt-4 space-y-3 xl:space-y-0 xl:divide-y xl:divide-line xl:overflow-hidden xl:rounded-xl xl:border xl:border-line">
                 {filteredProjects.map((project) => {
                   const latest = project.draft ?? project.deployments?.[0]
+                  const draftPreview =
+                    project.status === 'paused' ? undefined : project.draft?.previewUrl
+                  const statusClass =
+                    'inline-flex items-center gap-1.5 rounded-full px-2 py-1.25 text-xs font-semibold whitespace-nowrap'
                   return (
                     <article
                       className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-xl border border-line p-3.5 transition-colors duration-200 hover:bg-panel-hover xl:grid-cols-[minmax(0,1.8fr)_auto_minmax(0,1.1fr)_auto] xl:items-center xl:gap-3.5 xl:rounded-none xl:border-0"
@@ -440,18 +444,29 @@ export default function ProjectsPage({ user }: { user: AuthUser }) {
                         </div>
                       </div>
                       <div>
-                        <span
-                          className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1.25 text-xs font-semibold whitespace-nowrap ${project.status === 'paused' ? 'bg-subtle text-muted' : 'bg-success-soft text-success'}`}
-                        >
-                          <i className="size-1.5 rounded-full bg-current" aria-hidden="true" />
-                          {project.status === 'paused'
-                            ? '已暂停'
-                            : project.status === 'draft'
-                              ? '待发布'
-                              : project.draft
-                                ? '已发布 · 有草稿'
-                                : '已发布'}
-                        </span>
+                        {draftPreview ? (
+                          <a
+                            href={draftPreview}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`${statusClass} min-h-11 bg-success-soft text-success hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink xl:min-h-0`}
+                          >
+                            {project.status === 'draft' ? '待发布 · 预览 ↗' : '已发布 · 草稿预览 ↗'}
+                          </a>
+                        ) : (
+                          <span
+                            className={`${statusClass} ${project.status === 'paused' ? 'bg-subtle text-muted' : 'bg-success-soft text-success'}`}
+                          >
+                            <i className="size-1.5 rounded-full bg-current" aria-hidden="true" />
+                            {project.status === 'paused'
+                              ? '已暂停'
+                              : project.status === 'draft'
+                                ? '待发布'
+                                : project.draft
+                                  ? '已发布 · 有草稿'
+                                  : '已发布'}
+                          </span>
+                        )}
                       </div>
                       <div className="col-span-2 flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs xl:col-span-1 xl:block">
                         <strong

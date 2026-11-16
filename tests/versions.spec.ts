@@ -2,6 +2,46 @@ import { test, expect } from './fixtures.ts'
 import { date } from './data.ts'
 import { assertFits } from './helpers.ts'
 
+// 草稿预览从列表打开独立地址，暂停或未生成链接时仍只显示状态。
+test('项目列表直接打开草稿预览', async ({ page, api, isMobile }) => {
+  const project = api.projects[0]
+  const previewUrl = 'https://stack-nest--list-preview.example.com/'
+  project.draft = {
+    id: 'list-preview',
+    status: 'draft',
+    fileName: 'next.html',
+    createdAt: date,
+    previewUrl,
+  }
+  if (isMobile) await page.setViewportSize({ width: 320, height: 900 })
+  await page.goto('/projects')
+  const row = page.locator('#projects article').filter({ hasText: project.name })
+  const preview = row.getByRole('link', { name: '已发布 · 草稿预览 ↗' })
+  await expect(preview).toHaveAttribute('href', previewUrl)
+  await expect(preview).toHaveAttribute('target', '_blank')
+  await expect(row.getByRole('link', { name: '打开站点 ↗' })).toHaveAttribute(
+    'href',
+    project.siteUrl,
+  )
+  await assertFits(page)
+
+  project.status = 'paused'
+  await page.reload()
+  await expect(row.getByText('已暂停', { exact: true })).toBeVisible()
+  await expect(row.getByRole('link', { name: /预览/ })).toHaveCount(0)
+
+  project.status = 'draft'
+  project.deployments = []
+  await page.reload()
+  const firstPreview = row.getByRole('link', { name: '待发布 · 预览 ↗' })
+  await expect(firstPreview).toHaveAttribute('href', previewUrl)
+  delete project.draft.previewUrl
+  await page.reload()
+  await expect(row.getByText('待发布', { exact: true })).toBeVisible()
+  await expect(firstPreview).toHaveCount(0)
+  expect(api.requests.every(({ method }) => method === 'GET')).toBe(true)
+})
+
 // 验证详情页真实导航、刷新恢复、日志固定项目以及移动端两种主题的布局。
 test('项目详情支持深链接、前后退和项目范围日志', async ({ page, api, isMobile }, info) => {
   const project = api.projects[0]
