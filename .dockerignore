@@ -7,3 +7,8 @@ dist
 test-results
 playwright-report
 *.log
+**/*.token.local
+**/.stacknest-upload*.json
+docs
+stacknest-html-design-neutral
+.claude

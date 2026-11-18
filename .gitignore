@@ -16,6 +16,7 @@ playwright-report/
 .env
 .env.*
 *.local
+.stacknest-upload*.json
 
 # Editor directories and files
 .vscode/*

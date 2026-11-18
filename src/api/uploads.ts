@@ -38,6 +38,10 @@ async function digest(file: File) {
       .arrayBuffer()
       .then((buffer) => crypto.subtle.digest('SHA-256', buffer))
       .then(toHex)
+      .catch((error: unknown) => {
+        fingerprints.delete(file)
+        throw error
+      })
     fingerprints.set(file, pending)
   }
   return pending
@@ -234,7 +238,8 @@ export async function uploadProject(
         file.size,
         session.id,
       )
-      if (status.offset <= offset) throw new Error('服务器没有推进上传进度，请稍后继续')
+      if (status.offset !== offset + chunk.size)
+        throw new Error('服务器确认的分片长度不一致，已停止上传，请稍后继续')
       checkpoint(status)
       failures = 0
     } catch (error) {
@@ -250,6 +255,8 @@ export async function uploadProject(
         file.size,
         session.id,
       )
+      if (status.offset < offset)
+        throw new Error('服务器返回的进度低于已确认进度，已停止上传，请稍后继续', { cause: error })
       checkpoint(status)
       if (status.offset > offset) failures = 0
     } finally {

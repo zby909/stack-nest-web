@@ -20,6 +20,7 @@ export type UploadMock = {
   publishCount: number
   transportLimit?: number
   legacyChunks?: boolean
+  invalidOffset?: 'patch' | 'recovery'
 }
 
 // UploadRoute 允许同一协议夹具处理浏览器拦截与真实 HTTP 分片，不依赖浏览器专有对象。
@@ -67,7 +68,8 @@ export async function mockUploads(route: UploadRoute, state: UploadMock, project
     return route.fulfill({ status: 204 })
   }
   if (!record) return reply({ error: '上传记录不存在或已过期' }, 404)
-  if (method === 'GET') return reply(record)
+  if (method === 'GET')
+    return reply(state.invalidOffset === 'recovery' ? { ...record, offset: 0 } : record)
   if (method === 'PATCH') {
     const offset = Number(request.headers()['upload-offset'])
     if (state.transportLimit && (request.postDataBuffer()?.length ?? 0) > state.transportLimit)
@@ -81,6 +83,7 @@ export async function mockUploads(route: UploadRoute, state: UploadMock, project
     )
       return reply({ error: '分片长度无效' }, 400)
     record.offset += length
+    if (state.invalidOffset === 'patch') return reply({ ...record, offset: record.offset - 1 })
     if (state.dropResponseOnce) {
       state.dropResponseOnce = false
       return route.abort('connectionfailed')

@@ -301,7 +301,7 @@ export const test = base.extend<{ api: MockAPI }>({
             (_, i) => ({
               id: `event-${(page - 1) * pageSize + i + 1}`,
               message: `记录 ${(page - 1) * pageSize + i + 1}`,
-              action: 'pause',
+              action: query.action || 'pause',
               actor: admin.email,
               slug: query.slug || 'demo',
               status: 'succeeded',

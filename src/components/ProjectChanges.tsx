@@ -20,15 +20,15 @@ export default function ProjectChanges({ project }: { project: Project }) {
   const [result, setResult] = useState<{ key: string; changes: Change[]; error?: string } | null>(
     null,
   )
-  const target = project.draft ?? project.deployments?.[0]
-  const base = project.deployments?.[project.draft ? 0 : 1]
-  const key = `${target?.id}-${base?.id}-${revision}`
+  const targetId = (project.draft ?? project.deployments?.[0])?.id
+  const baseId = project.deployments?.[project.draft ? 0 : 1]?.id
+  const key = `${project.slug}/${targetId}/${baseId}/${revision}`
   useEffect(() => {
-    if (!expanded || !target) return
+    if (!expanded || !targetId) return
     const controller = new AbortController()
     void http
       .get<{ changes: Change[] }>(`/api/projects/${project.slug}/changes`, {
-        params: { deploymentId: target.id, baseId: base?.id },
+        params: { deploymentId: targetId, baseId },
         signal: controller.signal,
         timeout: 35_000,
       })
@@ -44,9 +44,10 @@ export default function ProjectChanges({ project }: { project: Project }) {
           })
       })
     return () => controller.abort()
-  }, [expanded, project.slug, target, base, key])
-  if (!target) return null
+  }, [expanded, project.slug, targetId, baseId, key])
+  if (!targetId) return null
   const current = result?.key === key ? result : null
+  const currentPage = Math.min(page, Math.max(1, Math.ceil((current?.changes.length ?? 0) / 30)))
   return (
     <section className="mt-5 rounded-panel border border-line bg-panel p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -54,7 +55,7 @@ export default function ProjectChanges({ project }: { project: Project }) {
           <h2 className="text-sm font-semibold">文件变化</h2>
           <p className="mt-1 text-xs text-muted">
             {project.draft ? '待发布版与当前正式版比较' : '当前正式版与上一正式版比较'}
-            {!base ? '；没有基线，全部视为新增。' : '，相同大小的内容修改也会识别。'}
+            {!baseId ? '；没有基线，全部视为新增。' : '，相同大小的内容修改也会识别。'}
           </p>
         </div>
         <Button
@@ -90,7 +91,7 @@ export default function ProjectChanges({ project }: { project: Project }) {
                 <Empty description="文件内容没有变化" />
               ) : (
                 <ul aria-label="文件变化" className="divide-y divide-line">
-                  {current.changes.slice((page - 1) * 30, page * 30).map((item) => (
+                  {current.changes.slice((currentPage - 1) * 30, currentPage * 30).map((item) => (
                     <li key={item.path} className="flex min-w-0 items-start gap-2 py-2 text-sm">
                       <Tag>{labels[item.kind]}</Tag>
                       <span className="min-w-0 flex-1 break-all">{item.path}</span>
@@ -105,7 +106,7 @@ export default function ProjectChanges({ project }: { project: Project }) {
                 <Pagination
                   className="mt-3"
                   simple
-                  current={page}
+                  current={currentPage}
                   pageSize={30}
                   total={current.changes.length}
                   onChange={setPage}

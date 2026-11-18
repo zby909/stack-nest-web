@@ -48,6 +48,7 @@ export type ActivityEvent = {
     | 'publish'
     | 'discard'
     | 'app-deploy'
+    | 'app-cancel'
     | 'app-start'
     | 'app-stop'
     | 'app-restart'
@@ -57,6 +58,7 @@ export type ActivityEvent = {
     | 'app-limits'
     | 'user-add'
     | 'user-role'
+    | 'user-delete'
     | 'token-create'
     | 'token-revoke'
   tokenName?: string

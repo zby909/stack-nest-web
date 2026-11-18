@@ -68,6 +68,20 @@ test('日志分页、筛选和重置', async ({ page, api }) => {
   })
   await page.getByRole('button', { name: '清除筛选', exact: true }).click()
   await expect.poll(() => api.logQueries.at(-1)).toEqual({ page: '1', pageSize: '50' })
+  for (const [action, label] of [
+    ['app-cancel', '取消部署'],
+    ['user-delete', '删除邮箱'],
+  ]) {
+    await selectOption(page, '筛选操作类型', label)
+    await page.locator('form button[type=submit]').click()
+    await expect.poll(() => api.logQueries.at(-1)?.action).toBe(action)
+    await expect(
+      page
+        .locator('article')
+        .first()
+        .getByText(label + '成功'),
+    ).toBeVisible()
+  }
 })
 
 // 验证普通用户入口隐藏管理员资源，手输路由同样回到自己的项目页。

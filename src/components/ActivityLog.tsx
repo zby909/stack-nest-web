@@ -17,6 +17,7 @@ const actions: Record<ActivityEvent['action'], string> = {
   publish: '发布',
   discard: '丢弃草稿',
   'app-deploy': '部署应用',
+  'app-cancel': '取消部署',
   'app-start': '启动应用',
   'app-stop': '停止应用',
   'app-restart': '重启应用',
@@ -26,6 +27,7 @@ const actions: Record<ActivityEvent['action'], string> = {
   'app-limits': '应用资源配置',
   'user-add': '添加邮箱',
   'user-role': '调整用户角色',
+  'user-delete': '删除邮箱',
   'token-create': '创建部署 Token',
   'token-revoke': '撤销部署 Token',
 }
@@ -144,6 +146,7 @@ export default function ActivityLog({ slug }: { slug?: string }) {
             <Select
               size="large"
               aria-label="筛选操作类型"
+              virtual={false}
               allowClear
               placeholder="全部操作"
               options={Object.entries(actions).map(([value, label]) => ({ value, label }))}

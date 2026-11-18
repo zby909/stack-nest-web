@@ -74,6 +74,22 @@ test('连续失败停止重试，迟到的进度回调不能重新显示上传�
   expect(api.uploads.publishCount).toBe(0)
 })
 
+// 错误确认和恢复查询都不能覆盖最近一次确认的偏移。
+for (const [mode, message, patches] of [
+  ['patch', '服务器确认的分片长度不一致', 1],
+  ['recovery', '服务器返回的进度低于已确认进度', 2],
+] as const) {
+  test(`异常偏移立即停止并保留任务：${mode}`, async ({ page, api, hasTouch }) => {
+    api.uploads.invalidOffset = mode
+    if (mode === 'recovery') api.uploads.failOffset = 512 * 1024
+    const dialog = await updateHTML(page, hasTouch)
+    await expect(dialog.getByRole('alert').filter({ hasText: message })).toBeVisible()
+    await expect(dialog.getByRole('button', { name: '继续上传', exact: true })).toBeEnabled()
+    expect(api.requests.filter((request) => request.method === 'PATCH')).toHaveLength(patches)
+    expect(api.uploads.publishCount).toBe(0)
+  })
+}
+
 // 未提供最小分片大小的旧服务仍使用固定 4 MiB 协议。
 test('服务未声明小分片能力时仍兼容原上传协议', async ({ page, api, hasTouch }) => {
   api.uploads.legacyChunks = true
