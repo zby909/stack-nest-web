@@ -43,7 +43,7 @@ WebKit 与设备模拟不能替代真实 iPhone 的系统文件选择器、输�
 
 ## 文档截图
 
-运行 `pnpm screenshots`，用本地虚构数据生成桌面、手机和深色模式截图，保存到 `docs/images/`。无需线上账号，不读取服务器配置。
+运行 `pnpm screenshots`，从[交互视觉稿](../stacknest-html-design-neutral/README.md)生成桌面、手机和深色截图。Visual previews 工作流为拉取请求提供可下载的离线图册，合入 `main` 后自动更新 `docs/images/` 中有变化的截图。
 
 ## 报告
 

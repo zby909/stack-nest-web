@@ -1,21 +1,40 @@
-import { defineConfig } from '@playwright/test'
-import base from '../playwright.config.ts'
+import { defineConfig, devices } from '@playwright/test'
 
-// 截图只运行本地虚构数据示例，产物写入文档目录。
+// 截图和交互稿运行相同的源码入口，使用独立回环端口，避免占用开发者正在浏览的预览。
 export default defineConfig({
-  ...base,
   testDir: '.',
-  testMatch: 'showcase.ts',
-  fullyParallel: false,
+  globalSetup: './showcase-server.ts',
+  outputDir: '../node_modules/.tmp/visual-results',
+  snapshotPathTemplate: '{testDir}/../docs/images/{arg}{ext}',
+  updateSnapshots: 'changed',
   workers: 1,
-  use: { ...base.use, colorScheme: 'light', reducedMotion: 'reduce' },
-  webServer: {
-    ...base.webServer,
-    command: 'pnpm build && pnpm preview --host 127.0.0.1 --port 4175 --strictPort',
-    env: { STACKNEST_BUILD_VERSION: 'dev', STACKNEST_BUILD_REVISION: 'unknown' },
+  reporter: 'line',
+  timeout: 90_000,
+  use: {
+    actionTimeout: 12_000,
+    baseURL: 'http://127.0.0.1:4177',
+    locale: 'zh-CN',
+    timezoneId: 'Asia/Shanghai',
+    colorScheme: 'light',
+    reducedMotion: 'reduce',
+    serviceWorkers: 'block',
+    channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
   },
-  projects: base.projects?.map((project) => ({
-    ...project,
-    use: { ...project.use, deviceScaleFactor: 1 },
-  })),
+  projects: [
+    {
+      name: 'desktop',
+      testMatch: 'showcase.ts',
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 1440, height: 960 },
+        deviceScaleFactor: 1,
+      },
+    },
+    {
+      name: 'mobile',
+      testMatch: 'showcase.ts',
+      use: { ...devices['Pixel 7'], viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 },
+    },
+    { name: 'gallery', testMatch: 'gallery.ts', dependencies: ['desktop', 'mobile'] },
+  ],
 })

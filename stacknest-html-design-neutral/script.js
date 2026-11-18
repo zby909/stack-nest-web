@@ -1,23 +1,31 @@
-const modal = document.getElementById('projectModal');
-const openBtn = document.getElementById('openProjectModal');
-const closeBtn = document.getElementById('closeProjectModal');
-const cancelBtn = document.getElementById('cancelProjectModal');
+const screens = [...document.querySelectorAll('nav a[data-route]')]
+const screen = document.querySelector('#screen')
+const title = document.querySelector('#screen-title')
+const original = document.querySelector('#original')
+const live = document.querySelector('#live')
 
-function openModal() {
-  modal.classList.remove('hidden');
+// showScreen 更新离线截图与交互稿深链接，支持书签和浏览器前后退。
+function showScreen() {
+  const selected =
+    screens.find((link) => link.dataset.screen === location.hash.slice(1)) ?? screens[0]
+  for (const link of screens) {
+    if (link === selected) link.setAttribute('aria-current', 'true')
+    else link.removeAttribute('aria-current')
+  }
+  title.textContent = selected.textContent
+  screen.src = selected.href
+  screen.alt = 'StackNest ' + selected.textContent + '页面'
+  screen.classList.toggle('mobile', selected.dataset.screen.endsWith('-mobile'))
+  original.href = selected.href
+  live.href = new URL(selected.dataset.route, 'http://127.0.0.1:4176').href
 }
 
-function closeModal() {
-  modal.classList.add('hidden');
+for (const link of screens) {
+  link.addEventListener('click', (event) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    event.preventDefault()
+    location.hash = link.dataset.screen
+  })
 }
-
-openBtn?.addEventListener('click', openModal);
-closeBtn?.addEventListener('click', closeModal);
-cancelBtn?.addEventListener('click', closeModal);
-modal?.addEventListener('click', (e) => {
-  if (e.target === modal) closeModal();
-});
-
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeModal();
-});
+window.addEventListener('hashchange', showScreen)
+showScreen()

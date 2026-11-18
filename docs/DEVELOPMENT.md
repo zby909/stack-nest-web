@@ -45,4 +45,4 @@ pnpm build
 
 自动整理用 `pnpm lint:fix` 和 `pnpm format`。行为变更运行 [浏览器回归](TESTING.md)。
 
-`stacknest-html-design-neutral/` 是早期视觉稿，不参与产品构建。
+运行 `pnpm design`，用示例数据浏览当前管理台。改动 React 组件和样式后，页面会热更新。[交互与离线视觉稿](../stacknest-html-design-neutral/README.md)

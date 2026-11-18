@@ -40,7 +40,7 @@
   <img src="docs/images/system-desktop.png" alt="深色主题下的服务器状态与平台诊断">
 </details>
 
-<sub>截图来自实际界面，使用虚构的演示数据。成员、管理员和超管按各自权限显示对应功能。</sub>
+截图来自使用示例数据的实际管理台。查看全部页面或在本机切换主题、查看应用详情，见[界面预览](stacknest-html-design-neutral/README.md)。
 
 ## 本地开发
 
