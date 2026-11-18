@@ -26,8 +26,13 @@ jobs:
           node-version: '24'
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+      - run: pnpm exec playwright install --with-deps --only-shell chromium
+      - name: Check Chinese font support
+        run: |
+          if [ -z "$(fc-list :lang=zh-cn family)" ]; then
+            sudo apt-get install -y --no-install-recommends fonts-noto-cjk
+          fi
+          test -n "$(fc-list :lang=zh-cn family)"
       - name: Render and check a fresh gallery
         run: |
           pnpm screenshots
