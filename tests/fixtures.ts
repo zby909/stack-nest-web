@@ -119,6 +119,10 @@ export const test = base.extend<{ api: MockAPI }>({
             headers: { 'X-Request-ID': 'regression-request' },
             body: JSON.stringify(data),
           })
+        if (/^\/api\/(projects|apps)\/[^/]+\/traffic$/.test(path) && method === 'GET')
+          return reply({ available: false, days: [] })
+        if (/^\/api\/apps\/[^/]+\/data-export$/.test(path) && method === 'GET')
+          return reply({ state: 'no_backup' })
         if (/^\/api\/projects\/[^/]+\/deploy-tokens$/.test(path) && method === 'GET')
           return reply({ tokens: [] })
         if (path === '/api/network') {

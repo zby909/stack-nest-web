@@ -197,6 +197,24 @@ test('真实发布链路：登录、上传、预览、发布、更新和回退',
     const singleURL = await page.getByRole('link', { name: '打开正式站点 ↗' }).getAttribute('href')
     await checkHTML(site, singleURL!)
 
+    // 通过真实 Nginx 与 Runner 验证页面请求进入对应项目的计数。
+    await expect
+      .poll(
+        async () => {
+          const resp = await page.request.get(
+            `${process.env.STACKNEST_SMOKE_BASE_URL}/api/projects/release-smoke/traffic`,
+          )
+          expect(resp.status()).toBe(200)
+          const summary = await resp.json()
+          return summary.days.reduce(
+            (total: number, day: { pages: number }) => total + day.pages,
+            0,
+          )
+        },
+        { timeout: 20_000 },
+      )
+      .toBeGreaterThan(0)
+
     const anonymous = await visitor.request.get(
       `${process.env.STACKNEST_SMOKE_BASE_URL}/api/projects`,
     )

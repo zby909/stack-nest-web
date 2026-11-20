@@ -9,6 +9,8 @@ import { navigate } from '../lib/router'
 import { usePolling } from '../lib/usePolling'
 import RouteLink from './RouteLink'
 import DockerAppDisk from './DockerAppDisk'
+import AppDataExport from './AppDataExport'
+import TrafficSummary from './TrafficSummary'
 import DockerAppLogPanel from './DockerAppLogPanel'
 import DockerAppForm from './DockerAppForm'
 import DockerAppLogs from './DockerAppLogs'
@@ -314,6 +316,8 @@ export default function DockerApps({
                 <DockerAppProgress view={view} />
                 <DockerAppRuntime view={view} compact={!detail} />
                 {detail && <DockerAppDisk view={view} />}
+                {detail && <AppDataExport id={app.id} path={app.dataPath} />}
+                {detail && <TrafficSummary kind="apps" id={app.id} />}
                 {detail && (
                   <dl className="mb-4 grid gap-2 rounded-lg bg-subtle p-3 text-xs sm:grid-cols-2">
                     <div>

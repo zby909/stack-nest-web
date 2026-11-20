@@ -130,6 +130,26 @@ export const visualAPI: Connect.NextHandleFunction = (request, response, next) =
       return reply({ totalBytes: 0, images: [] })
   }
   const [, , collection, key, section, extra] = path.split('/')
+  if (
+    !extra &&
+    section === 'traffic' &&
+    ((collection === 'projects' && projects.some((project) => project.slug === key)) ||
+      (collection === 'apps' && appList.apps.some((view) => view.app.id === key)))
+  ) {
+    const days = [36, 54, 48, 72, 57, 91, 68].map((requests, i) => ({
+      date: `2026-11-${10 + i}`,
+      requests,
+      pages: Math.floor(requests / 3),
+      clientErrors: i % 3,
+      serverErrors: 0,
+    }))
+    return reply({
+      available: true,
+      since: '2026-11-10T00:00:00Z',
+      updatedAt: '2026-11-16T12:00:00Z',
+      days,
+    })
+  }
   if (!extra && collection === 'projects') {
     const project = projects.find((item) => item.slug === key)
     if (project) {
@@ -167,6 +187,7 @@ export const visualAPI: Connect.NextHandleFunction = (request, response, next) =
   if (!extra && collection === 'apps') {
     const view = appList.apps.find((item) => item.app.id === key)
     if (view) {
+      if (section === 'data-export') return reply({ state: 'no_backup' })
       if (!section) return reply({ ...view, available: appList.available, limits: appList.limits })
       if (section === 'logs') return reply({ text: 'Listening on port 3000\nGET /health 200 OK' })
       if (section === 'deployment-logs') return reply({ text: 'Image ready. Health check passed.' })

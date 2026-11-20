@@ -81,6 +81,20 @@ async function installAPI(
     const method = request.method()
     // reply 统一模拟 JSON 响应。
     const reply = (body: unknown, status = 200) => route.fulfill({ status, json: body })
+    if (method === 'GET' && path === `/api/apps/${initial.app.id}/traffic`)
+      return reply({
+        available: true,
+        since: '2026-11-16T00:00:00Z',
+        updatedAt: '2026-11-16T12:00:00Z',
+        days: [{ date: '2026-11-16', requests: 34, pages: 8, clientErrors: 2, serverErrors: 1 }],
+      })
+    if (method === 'GET' && path === `/api/apps/${initial.app.id}/data-export`)
+      return reply({
+        state: 'ready',
+        createdAt: '2026-11-16T03:00:00Z',
+        snapshot: 'app-export-example1',
+        bytes: 560,
+      })
     if (path === '/api/auth/session')
       return reply(
         options.superadmin
@@ -602,6 +616,11 @@ test('健康状态与资源采样分别展示', async ({ page, hasTouch }) => {
   await activateControl(article.getByRole('link', { name: 'Small HTTP', exact: true }), hasTouch)
   await expect(page).toHaveURL(new RegExp('/apps/' + initial.app.id + '$'))
   await expect(article.getByText('CPU 12.5%', { exact: true })).toBeVisible()
+  await expect(article.getByRole('link', { name: '下载 tar.gz' })).toHaveAttribute(
+    'href',
+    `/api/apps/${initial.app.id}/data-export?download=app-export-example1`,
+  )
+  await expect(article.getByRole('region', { name: '访问概况' })).toContainText('34')
   await expect(article.getByText('32.0 MiB / 128 MiB', { exact: true })).toBeVisible()
   await expect(article.getByRole('progressbar', { name: '内存使用率' })).toHaveAttribute(
     'aria-valuenow',

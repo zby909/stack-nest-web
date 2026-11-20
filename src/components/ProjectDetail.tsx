@@ -7,6 +7,7 @@ import type { Project } from '../types/project'
 import RouteLink from './RouteLink'
 import LazyPanel from './LazyPanel'
 import ProjectUsage from './ProjectUsage'
+import TrafficSummary from './TrafficSummary'
 import ProjectVersions from './ProjectVersions'
 
 const ActivityLog = lazy(() => import('./ActivityLog'))
@@ -205,6 +206,7 @@ export default function ProjectDetail({
                 <div className="mt-5 border-t border-line pt-4">
                   <ProjectUsage project={project} />
                 </div>
+                <TrafficSummary key={project.id} kind="projects" id={project.slug} />
               </section>
             )}
             {tab === 'versions' && (

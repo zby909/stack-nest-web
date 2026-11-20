@@ -12,6 +12,7 @@ RUN STACKNEST_BUILD_VERSION="$VERSION" STACKNEST_BUILD_REVISION="$REVISION" pnpm
 FROM nginx:1.29-alpine
 
 RUN rm /etc/nginx/conf.d/default.conf
+COPY nginx/traffic.conf /etc/nginx/conf.d/00-stacknest-traffic.conf
 COPY --from=builder /src/dist/ /usr/share/nginx/html/
 COPY LICENSE NOTICE /usr/share/licenses/stacknest/
 LABEL org.opencontainers.image.licenses="Apache-2.0"
