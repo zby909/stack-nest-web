@@ -1,6 +1,9 @@
 import { test, expect } from './fixtures.ts'
 import { activateControl, assertFits, waitForDialog } from './helpers.ts'
 
+// 表单校验使用静止的滚动位置，避免滚动途中鼠标按下与抬起落在不同控件。
+test.use({ reducedMotion: 'reduce' })
+
 // 超管保存前核对策略，取消不写入；保存后展示实际生效范围和 DNS 提示。
 test('超管配置容器网络并确认保存', async ({ page, api, hasTouch }) => {
   api.role = 'superadmin'
